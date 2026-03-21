@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.0.2
+# FactorFlow V1.0.3
 # https://factorflow-efa.streamlit.app/
 
 import json
@@ -1242,9 +1242,13 @@ with tab_overview:
         * Right now, the tool does not support a correlation matrix as the main dataset and does not support
         polychoric correlations. These will be added in the future.
         * The Universal Sentence Encoder is the only embedding model supported right now.
-        * This tool is made available under the GNU General Public License v3.0.
+        * FactorFlow is made available under the GNU General Public License v3.0.
+        * The tool can be found [here](https://factorflow-efa.streamlit.app/).
+        * Sample datasets can be found [here]
+        (https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
         * The code repository for this tool can be found 
-        [here](https://github.com/jptuazon/st-simple-churn-dashboard/blob/main/app.py).
+        [here]([https://github.com/jptuazon/st-simple-churn-dashboard/blob/main/app.py]
+        (https://github.com/jptuazon/factorflow)).
         """)
 
     with st.expander("Dependencies", False, icon="🔗"):
