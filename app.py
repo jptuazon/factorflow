@@ -1,8 +1,22 @@
+# Copyright 2026 Justin Philip Tuazon
+
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
+
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License along with this program.
+# If not, see <https://www.gnu.org/licenses/>.
+
+# FactorFlow V1.0.1
+# https://factorflow-efa.streamlit.app/
+
 import json
 import math
 import time
 from itertools import product, combinations
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -308,7 +322,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.0.0
+        * Version Number: 1.0.1
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1241,8 +1255,7 @@ with tab_overview:
 
 with tab_dashboard:
     st.markdown(":bulb: If your screen is not wide enough for the horizontal layout, "
-                "consider temporarily hiding the *Menu* sidebar or using the vertical layout. You can also hide or "
-                "show columns in tables.")
+                "consider temporarily hiding the *Menu* sidebar. You can also hide or show columns in tables.")
     if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.models.keys()) == 0:
         st.warning("Fit a factor model first.")
     else:
