@@ -27,3 +27,4 @@ polychoric correlations. These will be added in the future.
 * Sample datasets can be found [here](https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
 * The code repository for this tool can be found 
 [here]([https://github.com/jptuazon/st-simple-churn-dashboard/blob/main/app.py](https://github.com/jptuazon/factorflow)).
+* You can reach out to jstuazon@alum.up.edu.ph for related concerns.
