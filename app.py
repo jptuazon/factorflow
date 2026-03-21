@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.0.1
+# FactorFlow V1.0.2
 # https://factorflow-efa.streamlit.app/
 
 import json
@@ -1163,7 +1163,7 @@ with tab_overview:
         analysis better. Using this tool, users can upload their dataset, fit various factor models, and 
         perform factor rotations. It comes with the following key features or components:
         * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., 
-        correlation heatmap) for core exploratory factor aalysis
+        correlation heatmap) for core exploratory factor analysis
         * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for 
         Factor Models](https://arxiv.org/abs/2409.11525) for going beyond the classical methods
         * Large language model integration for factor model interpretation
@@ -1324,7 +1324,7 @@ with tab_dashboard:
                     comm_and_adeq_styled = comm_and_adeq_styled.style.background_gradient(
                         cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
                     )
-                    st.dataframe(comm_and_adeq_styled, hide_index=True)
+                    st.dataframe(comm_and_adeq_styled, hide_index=True, key=f"{model_name}_comm_and_adeq")
 
                     st.badge("Interpretability plot", color="blue")
                     similarity_type = ("Semantic Similarity"
@@ -1352,7 +1352,7 @@ with tab_dashboard:
                                  f"{st.session_state.FACTOR_MODELS.calculate_v_index(model_name)}"
                     )
 
-                    st.plotly_chart(fig_v_plot, width="stretch")
+                    st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
 
                     st.badge("Factor loadings", color="blue")
                     thresh = st.slider(
@@ -1402,7 +1402,7 @@ with tab_dashboard:
                     fig_loadings.update_layout(
                         height=25 * st.session_state.DATA.shape[1]
                     )
-                    st.plotly_chart(fig_loadings, width="stretch")
+                    st.plotly_chart(fig_loadings, width="stretch", key=f"{model_name}_loadings")
 
                     df_loadings_download = df_loadings.reset_index(
                         inplace=False,
@@ -1465,7 +1465,7 @@ with tab_dashboard:
                         barmode="stack",
                         title="Sum of squared loadings per factor"
                     )
-                    st.plotly_chart(fig_tags_breakdown, width="stretch")
+                    st.plotly_chart(fig_tags_breakdown, width="stretch", key=f"{model_name}_tags_breakdown")
 
                     st.badge("Interpretation", color="blue")
                     if st.session_state.STATEMENTS is None:
