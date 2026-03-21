@@ -1,0 +1,16 @@
+setuptools<82.0.0
+numpy
+pandas
+scikit-learn<1.8.0
+factor-analyzer
+tensorflow
+tensorflow-hub
+interpretablefa
+scipy
+statsmodels
+matplotlib
+seaborn
+plotly
+streamlit
+groq
+streamlit-js-eval
