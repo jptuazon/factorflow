@@ -11,7 +11,7 @@ statsmodels
 matplotlib
 seaborn
 plotly
-streamlit
+streamlit>=1.38.0
 groq
 streamlit-js-eval
 protobuf==3.20.*
