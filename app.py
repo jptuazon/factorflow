@@ -1244,11 +1244,9 @@ with tab_overview:
         * The Universal Sentence Encoder is the only embedding model supported right now.
         * FactorFlow is made available under the GNU General Public License v3.0.
         * The tool can be found [here](https://factorflow-efa.streamlit.app/).
-        * Sample datasets can be found [here]
-        (https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
-        * The code repository for this tool can be found 
-        [here]([https://github.com/jptuazon/st-simple-churn-dashboard/blob/main/app.py]
-        (https://github.com/jptuazon/factorflow)).
+        * Sample datasets can be found 
+        [here](https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
+        * The code repository for this tool can be found [here](https://github.com/jptuazon/factorflow).
         """)
 
     with st.expander("Dependencies", False, icon="🔗"):
