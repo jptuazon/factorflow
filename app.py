@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.2
+# FactorFlow V1.2.3
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -337,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.2
+        * Version Number: 1.2.3
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -487,6 +487,8 @@ def upload_data_dialog():
     data_file_name = None
     statements = None
 
+    can_proceed = True
+
     csv_data = st.file_uploader("Choose a CSV file for the main dataset:", type="csv")
     if csv_data is not None:
         df_data = pd.read_csv(csv_data, header=None)
@@ -495,31 +497,32 @@ def upload_data_dialog():
         data_file_name = csv_data.name
         if df_data.isnull().values.any() > 0:
             st.error("The dataset must have only numeric values and there must be no missing values.")
-            st.stop()
+            can_proceed = False
         else:
             st.success("This dataset is valid.")
 
-    if df_data is not None:
-        use_statements = st.checkbox("Upload statements or questions associated with the manifest variables?")
-        if use_statements:
-            txt_data = st.file_uploader("Choose a TXT file for the statements:", type="txt")
-            if txt_data is not None:
-                statements = txt_data.getvalue().decode("utf-8")
-                statements = statements.splitlines()
-                if len(statements) != df_data.shape[1]:
-                    st.error("The number of statements must match the number of columns in the main dataset.")
-                    st.stop()
-                elif len(statements) > len(set(statements)):
-                    st.error("The statements must be unique.")
-                    st.stop()
+    if can_proceed:
+        if df_data is not None:
+            use_statements = st.checkbox("Upload statements or questions associated with the manifest variables?")
+            if use_statements:
+                txt_data = st.file_uploader("Choose a TXT file for the statements:", type="txt")
+                if txt_data is not None:
+                    statements = txt_data.getvalue().decode("utf-8")
+                    statements = statements.splitlines()
+                    if len(statements) != df_data.shape[1]:
+                        st.error("The number of statements must match the number of columns in the main dataset.")
+                        can_proceed = False
+                    elif len(statements) > len(set(statements)):
+                        st.error("The statements must be unique.")
+                        can_proceed = False
+                    else:
+                        st.success("This list of statements is valid.")
                 else:
-                    st.success("This list of statements is valid.")
-            else:
-                st.warning("Please upload the CSV file.")
-                st.stop()
+                    st.warning("Please upload the CSV file.")
+                    can_proceed = False
 
     st.space()
-    if df_data is not None:
+    if can_proceed and (df_data is not None):
         col_1, col_2 = st.columns([15, 3])
         with col_2:
             if st.button("Confirm", width="stretch"):
@@ -553,6 +556,8 @@ def view_tags_dialog():
     df_tags = df_tags[["Variable", "Statement", "Tags"]]
     df_tags.sort_values(by=["Statement", "Variable"], ascending=[True, True], inplace=True)
     st.dataframe(df_tags)
+
+    can_proceed = True
 
     st.space()
     col_1, col_2 = st.columns([6, 1])
@@ -612,31 +617,29 @@ def view_tags_dialog():
 
             if df_new_tags.shape[1] != 2:
                 st.error("The CSV file must have two columns, first for the variable and second for the tag.")
-                st.stop()
+                can_proceed = False
             df_new_tags.columns = ["variable", "tags"]
 
             if set(df_new_tags["variable"]) != set([f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])]):
                 st.error("The set of variables in the CSV file must match exactly the set of variables "
                          "originally uploaded.")
-                st.stop()
+                can_proceed = False
 
-    st.space()
-    col_1, col_2 = st.columns([6, 1])
-    with col_2:
-        if st.button("Confirm", width="stretch"):
-            if input_type == "Manual":
-                st.session_state.VARIABLE_TAGS[current_variable] = new_tags
-            else:
-                st.write(df_new_tags)
-                for idx, row in df_new_tags.iterrows():
-                    variable = row["variable"]
-                    tags = row["tags"].split(",") if not pd.isna(row["tags"]) else []
-                    tags = [tag.strip() for tag in tags if tag.strip() != ""] if len(tags) > 0 else tags
-                    if "No tag" in tags:
-                        st.error(""""No tag" is a reserved tag. Please remove this tag from your file.""")
-                        st.stop()
-                    st.session_state.VARIABLE_TAGS[variable] = tags
-            st.rerun()
+    if can_proceed:
+        st.space()
+        col_1, col_2 = st.columns([6, 1])
+        with col_2:
+            if st.button("Confirm", width="stretch"):
+                if input_type == "Manual":
+                    st.session_state.VARIABLE_TAGS[current_variable] = new_tags
+                else:
+                    st.write(df_new_tags)
+                    for idx, row in df_new_tags.iterrows():
+                        variable = row["variable"]
+                        tags = row["tags"].split(",") if not pd.isna(row["tags"]) else []
+                        tags = [tag.strip() for tag in tags if tag.strip() != ""] if len(tags) > 0 else tags
+                        st.session_state.VARIABLE_TAGS[variable] = tags
+                st.rerun()
 
 
 @st.dialog("View basic stats", width="large")
@@ -872,63 +875,60 @@ def fit_model_dialog():
     with col_3:
         if st.button("Cancel", width="stretch"):
             st.rerun()
-    if not can_proceed:
-        st.stop()
-    with col_2:
-        if st.button("Fit model", width="stretch"):
-            any_failed = False
+    if can_proceed:
+        with col_2:
+            if st.button("Fit model", width="stretch"):
+                any_failed = False
 
-            if model_name.strip() == "" or model_name is None:
-                st.toast("🚫 The model name cannot be empty.", duration="long")
-                any_failed = True
-            if model_name in st.session_state.FACTOR_MODELS.keys():
-                st.toast("🚫 The model name must be unique.")
-                any_failed = True
-
-            try:
-                number_of_factors = int(number_of_factors)
-            except ValueError:
-                st.toast("🚫 The number of factors must be an integer.", duration="long")
-                any_failed = True
-            if number_of_factors < 1 or number_of_factors >= len(manifest_vars):
-                st.toast("🚫 The number of factors must be at least 1 but less than the number of "
-                         "manifest variables.", duration="long")
-                any_failed = True
-
-            if rotation not in ROTATIONS:
-                st.toast("🚫 Please enter a valid rotation method.", duration="long")
-                any_failed = True
-
-            if rotation == "Priorimax" and prior_matrix is None:
-                st.toast("🚫 A prior matrix is required for priorimax.", duration="long")
-                any_failed = True
-
-            if prior not in ["Semantics", "Grouped", "Custom", "None"]:
-                st.toast("🚫 The prior matrix must be based on semantics, groupings, or custom values",
-                         duration="long")
-                any_failed = True
-
-            if prior != "None":
-                check = process_prior_matrix(prior_matrix.to_numpy(), rotation, manifest_vars)
-                if not check["pass"]:
-                    st.toast("🚫" + check["message"], duration="long")
+                if model_name.strip() == "" or model_name is None:
+                    st.toast("🚫 The model name cannot be empty.", duration="long")
                     any_failed = True
+                if model_name in st.session_state.FACTOR_MODELS.keys():
+                    st.toast("🚫 The model name must be unique.")
+                    any_failed = True
+
+                try:
+                    number_of_factors = int(number_of_factors)
+                except ValueError:
+                    st.toast("🚫 The number of factors must be an integer.", duration="long")
+                    any_failed = True
+                if number_of_factors < 1 or number_of_factors >= len(manifest_vars):
+                    st.toast("🚫 The number of factors must be at least 1 but less than the number of "
+                             "manifest variables.", duration="long")
+                    any_failed = True
+
+                if rotation not in ROTATIONS:
+                    st.toast("🚫 Please enter a valid rotation method.", duration="long")
+                    any_failed = True
+
+                if rotation == "Priorimax" and prior_matrix is None:
+                    st.toast("🚫 A prior matrix is required for priorimax.", duration="long")
+                    any_failed = True
+
+                if prior not in ["Semantics", "Grouped", "Custom", "None"]:
+                    st.toast("🚫 The prior matrix must be based on semantics, groupings, or custom values",
+                             duration="long")
+                    any_failed = True
+
+                if prior != "None":
+                    check = process_prior_matrix(prior_matrix.to_numpy(), rotation, manifest_vars)
+                    if not check["pass"]:
+                        st.toast("🚫" + check["message"], duration="long")
+                        any_failed = True
+                    else:
+                        prior_matrix = prior_matrix.to_numpy()
                 else:
-                    prior_matrix = prior_matrix.to_numpy()
-            else:
-                prior_matrix = None
+                    prior_matrix = None
 
-            if any_failed:
-                st.stop()
-
-            st.session_state.model_name = model_name
-            st.session_state.number_of_factors = number_of_factors
-            st.session_state.rotation = rotation
-            st.session_state.prior_matrix = prior_matrix
-            st.session_state.prior = prior
-            st.session_state.manifest_vars = manifest_vars
-            st.session_state.FIT_MODEL = "Yes"
-            st.rerun()
+                if not any_failed:
+                    st.session_state.model_name = model_name
+                    st.session_state.number_of_factors = number_of_factors
+                    st.session_state.rotation = rotation
+                    st.session_state.prior_matrix = prior_matrix
+                    st.session_state.prior = prior
+                    st.session_state.manifest_vars = manifest_vars
+                    st.session_state.FIT_MODEL = "Yes"
+                    st.rerun()
 
 
 def delete_factor_model(model_name):
