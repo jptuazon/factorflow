@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.1.0
+# FactorFlow V1.1.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -329,7 +329,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.1.0
+        * Version Number: 1.1.1
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1528,6 +1528,9 @@ with tab_dashboard:
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
+                    model_analysis = model_analyses[i]
+                    loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
+                                                                   if col.startswith("factor_")]]
 
                     st.badge("Factor breakdown", color="blue")
 
