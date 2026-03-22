@@ -10,7 +10,7 @@ Using this tool, practitioners can easily perform exploratory factor analysis an
 
 FactorFlow (a Streamlit app) can be accessed here: [https://factorflow-efa.streamlit.app/](https://factorflow-efa.streamlit.app/). Sample datasets to get started can be downloaded [here](https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
 
-![demo_1](./images/demo_1.png)
+![demo_1](./images/demo_1.jpeg)
 
 ![demo_2](./images/demo_2.jpeg)
 
