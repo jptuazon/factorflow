@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.1.1
+# FactorFlow V1.2.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -152,8 +152,8 @@ if "CURRENT_LLM_MODEL_ID" not in st.session_state:
 if "INTERPRETATIONS" not in st.session_state:
     st.session_state.INTERPRETATIONS = {}
 
-if "STATEMENT_TAGS" not in st.session_state:
-    st.session_state.STATEMENT_TAGS = {}
+if "VARIABLE_TAGS" not in st.session_state:
+    st.session_state.VARIABLE_TAGS = {}
 
 
 # Fit factor model
@@ -167,6 +167,13 @@ def fit_factor_model():
             prior_matrix = st.session_state.prior_matrix
             manifest_vars = st.session_state.manifest_vars
 
+            if rotation == "equamax":
+                rot_kwargs = {
+                    "kappa": number_of_factors / (2 * len(manifest_vars))
+                }
+            else:
+                rot_kwargs = None
+
             st.session_state.FACTOR_MODELS[model_name] = InterpretableFA(
                 st.session_state.DATA[manifest_vars]
             )
@@ -174,7 +181,8 @@ def fit_factor_model():
                 model_name,
                 number_of_factors,
                 rotation,
-                prior_matrix
+                prior_matrix,
+                rotation_kwargs=rot_kwargs
             )
 
             st.session_state.FIT_DETAILS[model_name] = {
@@ -329,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.1.1
+        * Version Number: 1.2.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -351,10 +359,7 @@ def compute_tags_breakdown(df_loadings):
     df_loadings[factor_cols] = df_loadings[factor_cols] ** 2
 
     tag_variable = {}
-    for statement, tags in st.session_state.STATEMENT_TAGS.items():
-        variable = st.session_state.STATEMENTS_DF[
-            st.session_state.STATEMENTS_DF["Statement"] == statement
-            ]["Variable"].item()
+    for variable, tags in st.session_state.VARIABLE_TAGS.items():
         for tag in tags:
             if tag not in tag_variable:
                 tag_variable[tag] = [variable]
@@ -519,33 +524,35 @@ def upload_data_dialog():
                     "Variable": [f"X{idx + 1}" for idx in range(df_data.shape[1])],
                     "Statement": statements
                 })
-                if statements is not None and len(statements) > 0:
-                    for statement in statements:
-                        st.session_state.STATEMENT_TAGS[statement] = []
+                st.session_state.VARIABLE_TAGS = {}
+                for idx in range(df_data.shape[1]):
+                    st.session_state.VARIABLE_TAGS[f"X{idx + 1}"] = []
                 st.rerun()
 
 
-@st.dialog("Statement tags", width="large")
+@st.dialog("Manifest variable tags", width="large")
 def view_tags_dialog():
     st.write("""
-    Tags are a priori labellings of statements. For instance, you can tag the statements "I am loyal to brands I have 
-    used before." and "I associate products with memories." with "Nostalgia". Each statement can have zero or more 
-    tags. These tags are then used to summarize the "breakdown" of a factor in the *Dashboard*.
+    Tags are a priori labellings of variables or statements. For instance, you can tag the statements "I am loyal to 
+    brands I have used before." and "I associate products with memories." with "Nostalgia". Each variable can have 
+    zero or more tags. These tags are then used to summarize the "breakdown" of a factor in the *Dashboard*.
     """)
 
     df_tags = pd.DataFrame([
-        {"Statement": statement, "Tags": ", ".join(tags)}
-        for statement, tags in st.session_state.STATEMENT_TAGS.items()
+        {"Variable": variable, "Tags": ", ".join(tags)}
+        for variable, tags in st.session_state.VARIABLE_TAGS.items()
     ])
     df_tags.index = [f"X{int(idx + 1)}" for idx in df_tags.index]
-    df_tags.sort_values(by=["Statement"], ascending=[True], inplace=True)
+    df_tags = pd.merge(left=df_tags, right=st.session_state.STATEMENTS_DF, on="Variable", how="left")
+    df_tags = df_tags[["Variable", "Statement", "Tags"]]
+    df_tags.sort_values(by=["Statement", "Variable"], ascending=[True, True], inplace=True)
     st.dataframe(df_tags)
 
     st.space()
     col_1, col_2 = st.columns([6, 1])
     with col_2:
         if st.button("Clear all tags", width="stretch"):
-            st.session_state.STATEMENT_TAGS = {}
+            st.session_state.VARIABLE_TAGS = {}
             st.rerun()
 
     st.markdown("## Edit tags")
@@ -554,17 +561,24 @@ def view_tags_dialog():
         "Input type",
         options=["Manual", "Upload"]
     )
-    current_statement = None
+    current_variable = None
     df_new_tags = None
 
     if input_type == "Manual":
-        st.markdown("### Current statement:")
-        current_statement = st.selectbox(
+        st.markdown("### Current variable:")
+
+        if st.session_state.STATEMENTS is not None:
+            choices = [f"X{i + 1} - {st.session_state.STATEMENTS[i]}"
+                       for i in range(st.session_state.DATA.shape[1])]
+        else:
+            choices = [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])]
+
+        current_variable = st.selectbox(
             "Choose statement",
-            options=sorted(list(st.session_state.STATEMENTS))
+            options=choices
         )
 
-        current_tags = ", ".join(list(st.session_state.STATEMENT_TAGS[current_statement]))
+        current_tags = ", ".join(list(st.session_state.VARIABLE_TAGS[current_variable]))
         st.markdown("### Current tags:")
         if current_tags != "":
             st.write(current_tags)
@@ -574,28 +588,28 @@ def view_tags_dialog():
         st.markdown("### New tags:")
         new_tags = st.multiselect(
             "Enter new tags",
-            options=list(st.session_state.STATEMENT_TAGS[current_statement]),
+            options=list(st.session_state.VARIABLE_TAGS[current_variable]),
             accept_new_options=True,
             placeholder="Selecting no tag will remove all tags.."
         )
     else:
-        new_tags = st.file_uploader(label="Upload CSV file for the statement tags", type="csv", width="stretch",
+        new_tags = st.file_uploader(label="Upload CSV file for the manifest variable tags", type="csv", width="stretch",
                                     help="""
-                                    The CSV file must have two columns. The first column must contain the statements 
-                                    and the second column must contain the corresponding tags. If a statement has 
-                                    multiple tags, separate them using commas (e.g., "Tag A, Tag B"). If a statement 
+                                    The CSV file must have two columns. The first column must contain the variables 
+                                    and the second column must contain the corresponding tags. If a variable has 
+                                    multiple tags, separate them using commas (e.g., "Tag A, Tag B"). If a variable 
                                     has no tags, leave the cell blank. The CSV file must not have headers.
                                     """)
         if new_tags is not None:
             df_new_tags = pd.read_csv(new_tags, header=None)
 
             if df_new_tags.shape[1] != 2:
-                st.error("The CSV file must have two columns, first for the statement and second for the tag.")
+                st.error("The CSV file must have two columns, first for the variable and second for the tag.")
                 st.stop()
-            df_new_tags.columns = ["statement", "tags"]
+            df_new_tags.columns = ["variable", "tags"]
 
-            if set(df_new_tags["statement"]) != set(st.session_state.STATEMENTS):
-                st.error("The set of statements in the CSV file must match exactly the set of statements "
+            if set(df_new_tags["variable"]) != set([f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])]):
+                st.error("The set of variables in the CSV file must match exactly the set of variables "
                          "originally uploaded.")
                 st.stop()
 
@@ -604,17 +618,17 @@ def view_tags_dialog():
     with col_2:
         if st.button("Confirm", width="stretch"):
             if input_type == "Manual":
-                st.session_state.STATEMENT_TAGS[current_statement] = new_tags
+                st.session_state.VARIABLE_TAGS[current_variable] = new_tags
             else:
                 st.write(df_new_tags)
                 for idx, row in df_new_tags.iterrows():
-                    statement = row["statement"]
+                    variable = row["variable"]
                     tags = row["tags"].split(",") if not pd.isna(row["tags"]) else []
                     tags = [tag.strip() for tag in tags if tag.strip() != ""] if len(tags) > 0 else tags
                     if "No tag" in tags:
                         st.error(""""No tag" is a reserved tag. Please remove this tag from your file.""")
                         st.stop()
-                    st.session_state.STATEMENT_TAGS[statement] = tags
+                    st.session_state.VARIABLE_TAGS[variable] = tags
             st.rerun()
 
 
@@ -887,12 +901,15 @@ def fit_model_dialog():
                          duration="long")
                 any_failed = True
 
-            check = process_prior_matrix(prior_matrix.to_numpy(), rotation, manifest_vars)
-            if not check["pass"]:
-                st.toast("🚫" + check["message"], duration="long")
-                any_failed = True
+            if prior != "None":
+                check = process_prior_matrix(prior_matrix.to_numpy(), rotation, manifest_vars)
+                if not check["pass"]:
+                    st.toast("🚫" + check["message"], duration="long")
+                    any_failed = True
+                else:
+                    prior_matrix = prior_matrix.to_numpy()
             else:
-                prior_matrix = prior_matrix.to_numpy()
+                prior_matrix = None
 
             if any_failed:
                 st.stop()
@@ -992,7 +1009,7 @@ def view_models_dialog():
                 ["variable", "Statement", "mean"] +
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
-                ]
+            ]
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
             cmap="RdBu", axis=None, subset=[col for col in model_analysis.columns if col.startswith("factor_")],
@@ -1133,7 +1150,7 @@ with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
                 st.session_state.FACTOR_MODELS = {}
                 st.session_state.FIT_DETAILS = {}
                 st.session_state.INTERPRETATIONS = {}
-                st.session_state.STATEMENT_TAGS = {}
+                st.session_state.VARIABLE_TAGS = {}
                 clear_embeddings()
                 st.rerun()
 
@@ -1152,8 +1169,7 @@ with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
 
         col_1, col_2 = st.columns(2)
         with col_1:
-            st.button("Tags", width="stretch", on_click=view_tags_dialog,
-                      disabled=(st.session_state.STATEMENTS is None))
+            st.button("Tags", width="stretch", on_click=view_tags_dialog)
         with col_2:
             st.button("Basic stats", width="stretch", on_click=view_data_dialog)
 
@@ -1175,7 +1191,11 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
             st.badge(model_name, color="green")
 
 # Body
-tab_overview, tab_dashboard = st.tabs([":material/home: Overview", ":material/dashboard: Dashboard"])
+tab_overview, tab_diagnostics, tab_dashboard = st.tabs([
+    ":material/home: Overview",
+    ":material/data_thresholding: Diagnostics",
+    ":material/dashboard: Dashboard"
+])
 
 with tab_overview:
     with st.expander("Description", True, icon=":material/description:"):
@@ -1229,12 +1249,21 @@ with tab_overview:
             of the columns in the main dataset (i.e., the first statement must correspond to the first feature). This 
             is an **optional** input, and will be used only if you select "semantics" for the prior in pairwise target 
             rotation.
-            * **The tags associated with each statement**. You can add tags to each statement to help visualize 
-            interpretability. To do so, click *Tags* under *Dataset*. This is optional.
+            * **The tags associated with each variable**. You can add tags to each variable or statement to help 
+            visualize interpretability. To do so, click *Tags* under *Dataset*. This is optional.
+            * **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
+            variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
+            more tags, and tags do not have to be unique across variables.
         """)
 
         st.markdown("""
-        2. Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
+        2. Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
+        communalities or you might want to determine the optimal number of factors. You can also go to *Basic stats* 
+        under *Dataset* in the menu to see some summary statistics.
+        """)
+
+        st.markdown("""
+        3. Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
         dataset. You can add or remove as many factor models as you need to. You can click the model name in order to 
         see more details about how the model was fit (e.g., number of factors, rotation method, fitting algorithm).
             * When uploading a CSV file for a custom prior matrix, make sure that the matrix is symmetric and that 
@@ -1246,7 +1275,7 @@ with tab_overview:
         """)
 
         st.markdown("""
-        3. Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
+        4. Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
         choose to display only one model to focus on a single factor model but you can also display 2 factor 
         models at the same time for comparisons.
             * If you want to view one factor model at a time in detail instead, you can go to *View* under 
@@ -1282,11 +1311,102 @@ with tab_overview:
             for line in f:
                 st.markdown(f"* {line}")
 
+with tab_diagnostics:
+    if st.session_state.DATA is None:
+        st.warning("Upload a dataset first.")
+    else:
+        manifest_vars = st.multiselect(
+            "Manifest variables",
+            options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
+            help="Only these manifest variables will be considered in the diagnostics of the factor model."
+        )
+        number_of_factors = st.slider(label="Number of factors", step=1,
+                                      value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
+                                      help="The number of factors cannot exceed the number of manifest "
+                                           "variables.", width="stretch")
+
+        st.space()
+
+        if len(manifest_vars) < 2:
+            st.warning("Select at least two manifest variables.")
+        elif len(manifest_vars) <= number_of_factors:
+            st.warning("The number of factors must be less than the number of manifest variables.")
+        else:
+            data_subset = st.session_state.DATA[manifest_vars]
+            ifa = InterpretableFA(data_subset)
+            ifa.fit_factor_model("model", number_of_factors, None)
+
+            model_analysis = ifa.analyze_model("model").reset_index(drop=True)
+            means = pd.DataFrame({
+                "variable": [manifest_var for manifest_var in manifest_vars],
+                "mean": [st.session_state.DATA[manifest_var].mean() for manifest_var in manifest_vars]
+            })
+            model_analysis = pd.merge(left=model_analysis, right=means, on="variable", how="inner")
+            if st.session_state.STATEMENTS_DF is not None:
+                model_analysis = pd.merge(left=model_analysis, right=st.session_state.STATEMENTS_DF,
+                                          left_on="variable", right_on="Variable", how="inner")
+                model_analysis = model_analysis[
+                    ["variable", "Statement", "mean"] +
+                    [col for col in model_analysis.columns if col.startswith("factor_")] +
+                    ["communality", "kmo_msa"]
+                ]
+            model_analysis.columns = [col.upper() for col in model_analysis.columns]
+            model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]]
+            model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
+            model_analysis_styled = model_analysis_styled.style.background_gradient(
+                cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+            )
+
+            with st.expander("Communalities and adequacies"):
+                st.dataframe(model_analysis_styled)
+
+            with st.expander("Scree plot"):
+                loadings_only = model_analysis[[col for col in model_analysis.columns
+                                                if col.startswith("FACTOR_")]].copy()
+                squared_loadings = loadings_only ** 2
+                eigenvalues = squared_loadings.sum().sort_values(ascending=False)
+                df_eigenvalues = pd.DataFrame({
+                    "Factor": eigenvalues.index,
+                    "Sum of Squared Loadings": eigenvalues
+                }).reset_index(drop=True)
+                fig_scree = px.line(
+                    df_eigenvalues,
+                    x="Factor",
+                    y="Sum of Squared Loadings",
+                    markers=True,
+                    title="Eigenvalue per factor"
+                )
+                fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion")
+                st.markdown(f"""
+                The total sum of eigenvalues is 
+                :blue-badge[{np.round(df_eigenvalues["Sum of Squared Loadings"].sum(), 4)}] out 
+                of the theoretical maximum of :blue-badge[{len(manifest_vars)}].
+                """)
+                st.plotly_chart(fig_scree, width="stretch")
+                st.space()
+
+            with st.expander("Correlations"):
+                corr_mat = data_subset.corr()
+                fig_corr = px.imshow(
+                    corr_mat,
+                    text_auto="0.2f",
+                    aspect="auto",
+                    color_continuous_scale='RdBu',
+                    zmin=-1, zmax=1,
+                    title="Subsetted correlation matrix"
+                )
+                fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                fig_corr.update_yaxes(tickmode="linear", dtick=1)
+                fig_corr.update_layout(
+                    height=min(650, max(25 * st.session_state.DATA.shape[1], 300))
+                )
+                st.plotly_chart(fig_corr, width="stretch")
+
 with tab_dashboard:
     st.badge(":material/info: If your screen is not wide enough for the horizontal layout, "
              "consider temporarily hiding the *Menu* sidebar. You can also hide or show columns in tables.",
              color="blue")
-    if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.keys()) == 0:
+    if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0:
         st.warning("Fit a factor model first.")
     else:
         col_1, col_2 = st.columns(2)
@@ -1378,43 +1498,42 @@ with tab_dashboard:
                                        else "Prior Similarity")
 
                     if multiset is None:
-                        df_multiset = pd.DataFrame({
-                            similarity_type: [],
-                            "Loading Similarity": []
-                        })
+                        st.warning("No prior matrix was supplied for this model.")
                     else:
                         df_multiset = pd.DataFrame({
                             similarity_type: [item[0] for item in multiset],
                             "Loading Similarity": [item[1] for item in multiset]
                         })
 
-                    try:
-                        with warnings.catch_warnings(record=True) as w:
+                        try:
+                            with warnings.catch_warnings(record=True) as w:
+                                fig_v_plot = px.scatter(
+                                    df_multiset,
+                                    x=similarity_type,
+                                    y="Loading Similarity",
+                                    trendline="lowess",
+                                    title=f"{similarity_type} vs Loading Similarity",
+                                    subtitle=f"V = "
+                                             f"{st.session_state.FACTOR_MODELS[
+                                                 model_name
+                                             ].calculate_v_index(model_name)}"
+                                )
+
+                                if any("invalid value encountered in divide" in str(warn.message) for warn in w):
+                                    st.toast("⚠️ Lowess failed to fit. Defaulting to OLS.")
+                                    raise RuntimeWarning("Lowess failed to fit.")
+                        except RuntimeWarning:
                             fig_v_plot = px.scatter(
                                 df_multiset,
                                 x=similarity_type,
                                 y="Loading Similarity",
-                                trendline="lowess",
+                                trendline="ols",
                                 title=f"{similarity_type} vs Loading Similarity",
                                 subtitle=f"V = "
                                          f"{st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)}"
                             )
 
-                            if any("invalid value encountered in divide" in str(warn.message) for warn in w):
-                                st.toast("⚠️ Lowess failed to fit. Defaulting to OLS.")
-                                raise RuntimeWarning("Lowess failed to fit.")
-                    except RuntimeWarning:
-                        fig_v_plot = px.scatter(
-                            df_multiset,
-                            x=similarity_type,
-                            y="Loading Similarity",
-                            trendline="ols",
-                            title=f"{similarity_type} vs Loading Similarity",
-                            subtitle=f"V = "
-                                     f"{st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)}"
-                        )
-
-                    st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
+                        st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
 
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
