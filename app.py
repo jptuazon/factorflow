@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.0.3
+# FactorFlow V1.0.4
 # https://factorflow-efa.streamlit.app/
 
 import json
@@ -39,7 +39,7 @@ def load_use_model():
     }});
 
     (async() => {{        
-        if (!window.use_model) {{
+        if (!window.parent.use_model) {{
             await load_library('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs');
             await load_library('https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder');
             window.parent.use_model = await use.load();
@@ -281,7 +281,7 @@ def generate_interpretation(factors):
                 }
             ],
             max_completion_tokens=2048,
-            temperature=0.05,
+            temperature=0.1,
             top_p=0.95,
             stream=False
         )
@@ -322,7 +322,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.0.3
+        * Version Number: 1.0.4
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -696,10 +696,10 @@ def fit_model_dialog():
     prior = None
     prior_matrix = None
 
-    st.markdown("""
-    :bulb: For the model name, it is recommended to follow this format: 
+    st.badge("""
+    :material/info: For the model name, it is recommended to follow this format: 
     [rotation]\\_[number of factors]\\_[prior matrix description] (e.g., "priorimax_3_semantics", "varimax_5_custom").
-    """)
+    """, color="blue")
 
     can_proceed = True
 
@@ -1058,9 +1058,9 @@ st.markdown("Developed by [Justin Philip Tuazon](https://www.linkedin.com/in/jus
 
 
 # Sidebar
-st.sidebar.title("Menu")
+st.sidebar.title(":material/menu: Menu")
 
-with st.sidebar.expander("NLP Models", expanded=True):
+with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True):
     st.subheader("Universal Sentence Encoder")
 
     st.write("Embedder status:")
@@ -1090,7 +1090,7 @@ with st.sidebar.expander("NLP Models", expanded=True):
     except Exception as e:
         st.badge("Not connected", color="red")
 
-with st.sidebar.expander("Dataset", expanded=True):
+with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
     if st.session_state.DATA is None:
         st.warning("You have not uploaded a dataset yet.")
         col_1, col_2, col_3 = st.columns([1, 5, 1])
@@ -1136,7 +1136,7 @@ with st.sidebar.expander("Dataset", expanded=True):
         with col_2:
             st.button("Basic stats", width="stretch", on_click=view_data_dialog)
 
-with st.sidebar.expander("Factor Models", expanded=True):
+with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=True):
     col_1, col_2 = st.columns(2)
     with col_1:
         st.button("Add", width="stretch", on_click=fit_model_dialog,
@@ -1154,10 +1154,10 @@ with st.sidebar.expander("Factor Models", expanded=True):
             st.badge(model_name, color="green")
 
 # Body
-tab_overview, tab_dashboard = st.tabs(["Overview", "Dashboard"])
+tab_overview, tab_dashboard = st.tabs([":material/home: Overview", ":material/dashboard: Dashboard"])
 
 with tab_overview:
-    with st.expander("Description", True, icon="📄"):
+    with st.expander("Description", True, icon=":material/description:"):
         st.markdown("""
         FactorFlow is an interactive tool intended to help practitioners perform exploratory factor
         analysis better. Using this tool, users can upload their dataset, fit various factor models, and 
@@ -1193,7 +1193,7 @@ with tab_overview:
         st.write("Feel free to interact with the sample visualization above to see how the plot changes depending on "
                  "how interpretable the factor model is!")
 
-    with st.expander("Getting started", True, icon="🚀"):
+    with st.expander("Getting started", True, icon=":material/rocket_launch:"):
         st.markdown("""
         In general, the user can perform the following steps in order to use this tool:
         1. Upload your dataset in the *Dataset* section of the *Menu*. You can upload two kinds of files: 
@@ -1210,15 +1210,21 @@ with tab_overview:
             rotation.
             * **The tags associated with each statement**. You can add tags to each statement to help visualize 
             interpretability. To do so, click *Tags* under *Dataset*. This is optional.
+        """)
+
+        st.markdown("""
         2. Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
         dataset. You can add or remove as many factor models as you need to. You can click the model name in order to 
         see more details about how the model was fit (e.g., number of factors, rotation method, fitting algorithm).
             * When uploading a CSV file for a custom prior matrix, make sure that the matrix is symmetric and that 
             the number of rows (or columns) matches the number of manifest variables (i.e., columns in the main 
             dataset). Also, all entries must be either a number or left blank.
-            * Note that the tool standardizes (i.e., subtract mean and divide by standard deviation) each manifest 
+            * Note that the tool standardizes (i.e., subtracts the mean and divides by standard deviation) each manifest 
             variable prior to fitting. This means that the loadings provided are standardized loadings (i.e., 
             **correlations** with the factors).
+        """)
+
+        st.markdown("""
         3. Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
         choose to display only one model to focus on a single factor model but you can also display 2 factor 
         models at the same time for comparisons.
@@ -1237,7 +1243,7 @@ with tab_overview:
         [paper](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
         """)
 
-    with st.expander("Notes", True, icon="📌"):
+    with st.expander("Notes", True, icon=":material/pinboard:"):
         st.markdown("""
         * Right now, the tool does not support a correlation matrix as the main dataset and does not support
         polychoric correlations. These will be added in the future.
@@ -1249,15 +1255,16 @@ with tab_overview:
         * The code repository for this tool can be found [here](https://github.com/jptuazon/factorflow).
         """)
 
-    with st.expander("Dependencies", False, icon="🔗"):
+    with st.expander("Dependencies", False, icon=":material/link_2:"):
         st.write("This tool uses several third-party Python packages or dependences, which are listed below.")
         with open("./requirements.txt", "r") as f:
             for line in f:
                 st.markdown(f"* {line}")
 
 with tab_dashboard:
-    st.markdown(":bulb: If your screen is not wide enough for the horizontal layout, "
-                "consider temporarily hiding the *Menu* sidebar. You can also hide or show columns in tables.")
+    st.badge(":material/info: If your screen is not wide enough for the horizontal layout, "
+             "consider temporarily hiding the *Menu* sidebar. You can also hide or show columns in tables.",
+             color="blue")
     if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.models.keys()) == 0:
         st.warning("Fit a factor model first.")
     else:
@@ -1315,18 +1322,18 @@ with tab_dashboard:
 
                     st.space()
 
-                    st.badge("Communalities and adequacies", color="blue")
-                    comm_and_adeq = model_analysis[["variable", "communality", "kmo_msa"]]
+                    st.badge("Communalities", color="blue")
+                    communalities = model_analysis[["variable", "communality"]]
                     if st.session_state.STATEMENTS_DF is not None:
-                        comm_and_adeq = pd.merge(left=comm_and_adeq, right=st.session_state.STATEMENTS_DF,
+                        communalities = pd.merge(left=communalities, right=st.session_state.STATEMENTS_DF,
                                                  left_on="variable", right_on="Variable", how="left")
-                        comm_and_adeq = comm_and_adeq[["variable", "Statement", "communality", "kmo_msa"]]
-                    comm_and_adeq.columns = [col.upper() for col in comm_and_adeq.columns]
-                    comm_and_adeq_styled = comm_and_adeq.reset_index(drop=True)
-                    comm_and_adeq_styled = comm_and_adeq_styled.style.background_gradient(
-                        cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+                        communalities = communalities[["variable", "Statement", "communality"]]
+                    communalities.columns = [col.upper() for col in communalities.columns]
+                    communalities_styled = communalities.reset_index(drop=True)
+                    communalities_styled = communalities_styled.style.background_gradient(
+                        cmap="Purples", axis=0, subset=["COMMUNALITY"], vmin=0, vmax=1.0
                     )
-                    st.dataframe(comm_and_adeq_styled, hide_index=True, key=f"{model_name}_comm_and_adeq")
+                    st.dataframe(communalities_styled, hide_index=True, key=f"{model_name}_communalities")
 
                     st.badge("Interpretability plot", color="blue")
                     similarity_type = ("Semantic Similarity"
