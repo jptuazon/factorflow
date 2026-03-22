@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.3
+# FactorFlow V1.2.5
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -337,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.3
+        * Version Number: 1.2.5
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1486,6 +1486,7 @@ with tab_dashboard:
                                                  left_on="variable", right_on="Variable", how="left")
                         comm_and_adeq = comm_and_adeq[["variable", "Statement", "communality", "kmo_msa"]]
                     comm_and_adeq.columns = [col.upper() for col in comm_and_adeq.columns]
+                    comm_and_adeq.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
                     comm_and_adeq_styled = comm_and_adeq.reset_index(drop=True)
                     comm_and_adeq_styled = comm_and_adeq_styled.style.background_gradient(
                         cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
@@ -1511,7 +1512,7 @@ with tab_dashboard:
                             similarity_type: [item[0] for item in multiset],
                             "Loading Similarity": [item[1] for item in multiset]
                         })
-
+                        lowess_failed = False
                         try:
                             with warnings.catch_warnings(record=True) as w:
                                 fig_v_plot = px.scatter(
@@ -1538,9 +1539,11 @@ with tab_dashboard:
                                 subtitle=f"V = "
                                          f"{st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)}"
                             )
+                            lowess_failed = True
 
                         st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
-                        st.warning("Lowess failed to fit. Defaulted to OLS.")
+                        if lowess_failed:
+                            st.warning("Lowess failed to fit. Defaulted to OLS.")
 
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
@@ -1581,8 +1584,9 @@ with tab_dashboard:
                     df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
                         float(thresh)
                     ).astype(int)
+
                     if not show_raw:
-                        df_loadings = df_loadings_discretized.copy()
+                        df_loadings = df_loadings_discretized
 
                     fig_loadings = px.imshow(
                         df_loadings,
@@ -1622,7 +1626,7 @@ with tab_dashboard:
                                 col for col in df_loadings_download.columns
                                 if col.startswith("FACTOR_")
                             ]
-                            ]
+                        ]
                     st.download_button("Download as CSV file",
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
@@ -1676,6 +1680,18 @@ with tab_dashboard:
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
+                    model_analysis = model_analyses[i]
+                    loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
+                                                                   if col.startswith("factor_")]]
+
+                    df_loadings = loadings_only
+                    df_loadings = df_loadings.set_index("variable")
+                    factor_cols = [col for col in df_loadings.columns if col.startswith("factor_")]
+
+                    df_loadings_discretized = df_loadings
+                    df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
+                        float(thresh)
+                    ).astype(int)
 
                     st.badge("Interpretation", color="blue")
                     if st.session_state.STATEMENTS is None:
