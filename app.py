@@ -10,9 +10,10 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.0.4
+# FactorFlow V1.1.0
 # https://factorflow-efa.streamlit.app/
 
+import warnings
 import json
 import math
 import time
@@ -116,9 +117,7 @@ elif st.session_state.DATA is not None and st.session_state.EMBEDDINGS is not No
     st.session_state.SEMANTIC_SIMILARITY_MATRIX = semantic_similarity_mat
 
 if "FACTOR_MODELS" not in st.session_state:
-    st.session_state.FACTOR_MODELS = None
-if st.session_state.DATA is not None and st.session_state.FACTOR_MODELS is None:
-    st.session_state.FACTOR_MODELS = InterpretableFA(st.session_state.DATA)
+    st.session_state.FACTOR_MODELS = {}
 
 if "FIT_DETAILS" not in st.session_state:
     st.session_state.FIT_DETAILS = {}
@@ -140,6 +139,9 @@ if "prior_matrix" not in st.session_state:
 
 if "prior" not in st.session_state:
     st.session_state.prior = None
+
+if "manifest_vars" not in st.session_state:
+    st.session_state.manifest_vars = None
 
 if "SAMPLE_V_DATA" not in st.session_state:
     st.session_state.SAMPLE_V_DATA = pd.read_csv("./sample_data/sample_v_data.csv")
@@ -163,8 +165,12 @@ def fit_factor_model():
             number_of_factors = int(st.session_state.number_of_factors)
             rotation = None if st.session_state.rotation == "None" else str(st.session_state.rotation).lower()
             prior_matrix = st.session_state.prior_matrix
+            manifest_vars = st.session_state.manifest_vars
 
-            st.session_state.FACTOR_MODELS.fit_factor_model(
+            st.session_state.FACTOR_MODELS[model_name] = InterpretableFA(
+                st.session_state.DATA[manifest_vars]
+            )
+            st.session_state.FACTOR_MODELS[model_name].fit_factor_model(
                 model_name,
                 number_of_factors,
                 rotation,
@@ -174,7 +180,8 @@ def fit_factor_model():
             st.session_state.FIT_DETAILS[model_name] = {
                 "number_of_factors": number_of_factors,
                 "rotation": rotation,
-                "prior": st.session_state.prior
+                "prior": st.session_state.prior,
+                "manifest_vars": manifest_vars
             }
 
             st.session_state.INTERPRETATIONS[model_name] = (None, "")
@@ -193,7 +200,7 @@ def fit_factor_model():
             st.rerun()
 
 
-if st.session_state.FIT_MODEL == "Yes" and (st.session_state.FACTOR_MODELS is not None):
+if st.session_state.FIT_MODEL == "Yes":
     fit_factor_model()
 
 # LLM set up
@@ -306,7 +313,7 @@ def interpret_factor_model(df_discretized_loadings):
             for variable in variables:
                 statement = st.session_state.STATEMENTS_DF[
                     st.session_state.STATEMENTS_DF["Variable"] == variable
-                ]["Statement"].item()
+                    ]["Statement"].item()
                 input_for_llm += f"- {statement}\n"
 
     input_for_llm = input_for_llm.encode("utf-8").decode("unicode_escape")
@@ -322,7 +329,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.0.4
+        * Version Number: 1.1.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -347,7 +354,7 @@ def compute_tags_breakdown(df_loadings):
     for statement, tags in st.session_state.STATEMENT_TAGS.items():
         variable = st.session_state.STATEMENTS_DF[
             st.session_state.STATEMENTS_DF["Statement"] == statement
-        ]["Variable"].item()
+            ]["Variable"].item()
         for tag in tags:
             if tag not in tag_variable:
                 tag_variable[tag] = [variable]
@@ -363,7 +370,7 @@ def compute_tags_breakdown(df_loadings):
         factor_absolute_loadings["included"] = factor_absolute_loadings["variable"].isin(variables).astype(int)
         total = factor_absolute_loadings[
             factor_absolute_loadings["included"] == 1
-        ][factor].sum()
+            ][factor].sum()
         tags.append(tag)
         factors.append(factor)
         absolute_loadings_sum.append(total)
@@ -379,7 +386,7 @@ def compute_tags_breakdown(df_loadings):
         factor_absolute_loadings["included"] = factor_absolute_loadings["variable"].isin(variables).astype(int)
         total = factor_absolute_loadings[
             factor_absolute_loadings["included"] == 1
-        ][factor].sum()
+            ][factor].sum()
         tags.append("No tag")
         factors.append(factor)
         absolute_loadings_sum.append(total)
@@ -397,7 +404,7 @@ def compute_tags_breakdown(df_loadings):
     return df_tags_breakdown
 
 
-def process_prior_matrix(prior_matrix, rotation):
+def process_prior_matrix(prior_matrix, rotation, manifest_vars):
     result = {
         "pass": True,
         "message": "Passed."
@@ -414,11 +421,11 @@ def process_prior_matrix(prior_matrix, rotation):
         result["message"] = "The custom prior matrix must be 2D."
         return result
 
-    if (prior_matrix.shape[0] != st.session_state.DATA.shape[1]
-            or prior_matrix.shape[1] != st.session_state.DATA.shape[1]):
+    if (prior_matrix.shape[0] != len(manifest_vars)
+            or prior_matrix.shape[1] != len(manifest_vars)):
         result["pass"] = False
         result["message"] = ("The number of rows (or columns) of the prior matrix must match the number of manifest "
-                             "variables (i.e., the number of columns in the main dataset).")
+                             "variables.")
         return result
 
     for row in range(prior_matrix.shape[0]):
@@ -631,7 +638,7 @@ def view_data_dialog():
         fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
         fig_corr.update_yaxes(tickmode="linear", dtick=1)
         fig_corr.update_layout(
-            height=20 * st.session_state.DATA.shape[1]
+            height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
         )
         st.plotly_chart(fig_corr, width="stretch")
         st.dataframe(corr_mat)
@@ -668,24 +675,12 @@ def view_data_dialog():
                 fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_semantic.update_yaxes(tickmode="linear", dtick=1)
                 fig_semantic.update_layout(
-                    height=20 * st.session_state.DATA.shape[1]
+                    height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
                 )
                 st.plotly_chart(fig_semantic, width="stretch")
                 st.dataframe(semantic_similarity_mat)
             else:
                 st.write(":hourglass_flowing_sand: Loading...")
-
-    with (st.expander("Sampling Adequacy")):
-        st.markdown("#### Kaiser-Meyer-Olkin")
-        temp = InterpretableFA(st.session_state.DATA)
-        df_kmo = pd.DataFrame({
-            "Variable": [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])] + ["Overall"],
-            "KMO": list(temp.kmo[0]) + [temp.kmo[1]]
-        })
-        st.dataframe(df_kmo)
-        st.markdown("#### Test for Sphericity")
-        st.write(f"Test statistic: {temp.sphericity[0]}")
-        st.write(f"p-value: {temp.sphericity[1]}")
 
 
 @st.dialog("Fit a new model", width="large", dismissible=False)
@@ -695,6 +690,7 @@ def fit_model_dialog():
     rotation = None
     prior = None
     prior_matrix = None
+    manifest_vars = None
 
     st.badge("""
     :material/info: For the model name, it is recommended to follow this format: 
@@ -705,17 +701,25 @@ def fit_model_dialog():
 
     col_1, col_2 = st.columns(2)
     with col_1:
-        model_name = st.text_input(label="Model name", value=f"model_{len(st.session_state.FACTOR_MODELS.models) + 1}",
+        model_name = st.text_input(label="Model name", value=f"model_{len(st.session_state.FACTOR_MODELS) + 1}",
                                    help="This must be unique.", width="stretch")
-        rotation = st.selectbox(label="Rotation", placeholder="Select a rotation method...",
-                                options=ROTATIONS, help="Priorimax, Varimax, Oblimax, Quartimax, and Equamax are "
-                                                        "orthogonal rotations. Promax, Oblimin, and Quartimin are "
-                                                        "oblique rotations.", width="stretch")
     with col_2:
         number_of_factors = st.number_input(label="Number of factors", placeholder="Enter a positive number...",
                                             value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
                                             help="The number of factors cannot exceed the number of manifest "
                                                  "variables.", width="stretch")
+    manifest_vars = st.multiselect(
+        "Manifest variables",
+        options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
+        help="Only these manifest variables will be considered in the factor model."
+    )
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        rotation = st.selectbox(label="Rotation", placeholder="Select a rotation method...",
+                                options=ROTATIONS, help="Priorimax, Varimax, Oblimax, Quartimax, and Equamax are "
+                                                        "orthogonal rotations. Promax, Oblimin, and Quartimin are "
+                                                        "oblique rotations.", width="stretch")
+    with col_2:
         prior = st.selectbox(label="Prior matrix", placeholder="Specify the prior matrix for priorimax...",
                              options=("Semantics", "Grouped", "Custom", "None"),
                              help="""
@@ -723,89 +727,72 @@ def fit_model_dialog():
                              matrix by uploading a CSV file. This is required when using the priorimax rotation and 
                              optional for other rotation methods.""", width="stretch")
 
-    if prior == "Semantics":
-        if st.session_state.SEMANTIC_SIMILARITY_MATRIX is None:
-            st.warning("You cannot use the semantic similarity matrix for the prior matrix since no statements "
-                       "were loaded.")
-            can_proceed = False
-        if can_proceed:
-            semantic_similarity_mat = st.session_state.SEMANTIC_SIMILARITY_MATRIX
-            fig_semantic = px.imshow(
-                semantic_similarity_mat,
-                text_auto="0.3f",
-                aspect="auto",
-                color_continuous_scale='Blues',
-                zmin=0, zmax=1
-            )
-            fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-            fig_semantic.update_yaxes(tickmode="linear", dtick=1)
-            fig_semantic.update_layout(
-                height=20 * st.session_state.DATA.shape[1],
-                title="The semantic similarity matrix will be used as the prior matrix."
-            )
-            st.plotly_chart(fig_semantic, width="stretch")
-            prior_matrix = semantic_similarity_mat.to_numpy()
-    elif prior == "Grouped":
-        cols = st.columns(3)
-        if st.session_state.STATEMENTS is not None:
-            group_choices = [f"X{i + 1} - {st.session_state.STATEMENTS[i]}"
-                             for i in range(st.session_state.DATA.shape[1])]
-        else:
-            group_choices = [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])]
-        groupings = []
-        if number_of_factors is not None:
-            for factor_number in range(number_of_factors):
-                current_col = cols[factor_number % len(cols)]
-                with current_col:
-                    groupings.append(
-                        st.multiselect(label=f"Grouping {factor_number + 1}", options=group_choices)
-                    )
+    if len(manifest_vars) < 2:
+        st.warning("Please select at least two manfiest variables first.")
+        can_proceed = False
 
-        for idx, grouping in enumerate(groupings):
-            if len(grouping) < 2:
-                st.warning(f"Grouping {idx + 1} must have at least two entries.")
+    if can_proceed:
+        if prior == "Semantics":
+            if st.session_state.SEMANTIC_SIMILARITY_MATRIX is None:
+                st.warning("You cannot use the semantic similarity matrix for the prior matrix since no statements "
+                           "were loaded.")
                 can_proceed = False
-            groupings[idx] = [int(val.split(" - ")[0].replace("X", "")) - 1 for val in grouping]
-
-        if can_proceed:
-            prior_matrix = np.zeros((st.session_state.DATA.shape[1], st.session_state.DATA.shape[1]), dtype=np.int8)
-            np.fill_diagonal(prior_matrix, 1)
-            for grouping in groupings:
-                for pair in combinations(grouping, 2):
-                    prior_matrix[pair[0], pair[1]] = 1
-                    prior_matrix[pair[1], pair[0]] = 1
-
-            df_prior_matrix = pd.DataFrame(prior_matrix,
-                                           index=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])],
-                                           columns=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])])
-            fig_prior = px.imshow(
-                df_prior_matrix,
-                text_auto="0",
-                aspect="auto",
-                color_continuous_scale='Blues',
-                zmin=0, zmax=1
-            )
-            fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-            fig_prior.update_yaxes(tickmode="linear", dtick=1)
-            fig_prior.update_layout(
-                height=20 * st.session_state.DATA.shape[1],
-                title="This grouping matrix will be used as the prior matrix."
-            )
-            st.plotly_chart(fig_prior, width="stretch")
-    elif prior == "Custom":
-        prior_matrix = st.file_uploader(label="Upload CSV file for the prior matrix", type="csv", width="stretch",
-                                        disabled=(prior != "Custom"))
-        if prior_matrix is not None:
-            prior_matrix = pd.read_csv(prior_matrix, header=None).to_numpy()
-
-            check = process_prior_matrix(prior_matrix, rotation)
-            if check["pass"]:
-                df_prior_matrix = pd.DataFrame(prior_matrix,
-                                               index=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])],
-                                               columns=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])])
-                fig_prior = px.imshow(
-                    df_prior_matrix,
+            if can_proceed:
+                semantic_similarity_mat = st.session_state.SEMANTIC_SIMILARITY_MATRIX.loc[manifest_vars, manifest_vars]
+                fig_semantic = px.imshow(
+                    semantic_similarity_mat,
                     text_auto="0.3f",
+                    aspect="auto",
+                    color_continuous_scale='Blues',
+                    zmin=0, zmax=1
+                )
+                fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                fig_semantic.update_yaxes(tickmode="linear", dtick=1)
+                fig_semantic.update_layout(
+                    height=min(900, max(50 * len(manifest_vars), 300)),
+                    title="The semantic similarity matrix will be used as the prior matrix."
+                )
+                st.plotly_chart(fig_semantic, width="stretch")
+                prior_matrix = semantic_similarity_mat
+        elif prior == "Grouped":
+            cols = st.columns(3)
+            if st.session_state.STATEMENTS is not None:
+                group_choices = [f"X{i + 1} - {st.session_state.STATEMENTS[i]}"
+                                 for i in range(st.session_state.DATA.shape[1])]
+            else:
+                group_choices = [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])]
+            group_choices = [
+                group_choice
+                for group_choice in group_choices if group_choice.split(" - ")[0] in manifest_vars
+            ]
+
+            groupings = []
+            if number_of_factors is not None:
+                for factor_number in range(number_of_factors):
+                    current_col = cols[factor_number % len(cols)]
+                    with current_col:
+                        groupings.append(
+                            st.multiselect(label=f"Grouping {factor_number + 1}", options=group_choices)
+                        )
+
+            for idx, grouping in enumerate(groupings):
+                if len(grouping) < 2:
+                    st.warning(f"Grouping {idx + 1} must have at least two entries.")
+                    can_proceed = False
+                groupings[idx] = [group_choice.split(" - ")[0] for group_choice in grouping]
+
+            if can_proceed:
+                prior_matrix = np.zeros((len(manifest_vars), len(manifest_vars)), dtype=np.int8)
+                np.fill_diagonal(prior_matrix, 1)
+                prior_matrix = pd.DataFrame(prior_matrix, columns=manifest_vars, index=manifest_vars)
+                for grouping in groupings:
+                    for pair in combinations(grouping, 2):
+                        prior_matrix.loc[pair[0], pair[1]] = 1
+                        prior_matrix.loc[pair[1], pair[0]] = 1
+
+                fig_prior = px.imshow(
+                    prior_matrix,
+                    text_auto="0",
                     aspect="auto",
                     color_continuous_scale='Blues',
                     zmin=0, zmax=1
@@ -813,18 +800,51 @@ def fit_model_dialog():
                 fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_prior.update_yaxes(tickmode="linear", dtick=1)
                 fig_prior.update_layout(
-                    height=20 * st.session_state.DATA.shape[1],
-                    title="This custom matrix will be used as the prior matrix."
+                    height=min(900, max(50 * prior_matrix.shape[1], 300)),
+                    title="This grouping matrix will be used as the prior matrix."
                 )
                 st.plotly_chart(fig_prior, width="stretch")
+        elif prior == "Custom":
+            prior_matrix = st.file_uploader(label="Upload CSV file for the prior matrix", type="csv", width="stretch",
+                                            disabled=(prior != "Custom"))
+            if prior_matrix is not None:
+                prior_matrix = pd.read_csv(prior_matrix, header=None).to_numpy()
+
+                check = process_prior_matrix(prior_matrix, rotation, manifest_vars)
+                if check["pass"]:
+                    prior_matrix = pd.DataFrame(prior_matrix, index=manifest_vars, columns=manifest_vars)
+                    fig_prior = px.imshow(
+                        prior_matrix,
+                        text_auto="0.3f",
+                        aspect="auto",
+                        color_continuous_scale='Blues',
+                        zmin=0, zmax=1
+                    )
+                    fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                    fig_prior.update_yaxes(tickmode="linear", dtick=1)
+                    fig_prior.update_layout(
+                        height=min(900, max(50 * len(manifest_vars), 300)),
+                        title="This custom matrix will be used as the prior matrix."
+                    )
+                    st.plotly_chart(fig_prior, width="stretch")
+                else:
+                    st.error(check["message"])
+                    can_proceed = False
             else:
-                st.error(check["message"])
+                manifest_statements = st.session_state.STATEMENTS_DF[
+                    st.session_state.STATEMENTS_DF["Variable"].isin(manifest_vars)
+                ].sort_values(by="Variable", ascending=True, key=lambda x: x.map({
+                    val: key
+                    for key, val in enumerate(manifest_vars)
+                })).reset_index(drop=True)
+                st.warning("""
+                Please upload the CSV file. Please make sure that the order of the rows (and columns) match the order of 
+                the manifest variables shown below.
+                """)
+                st.write(manifest_statements)
                 can_proceed = False
-        else:
-            st.warning("Please upload the CSV file.")
-            can_proceed = False
-    elif prior == "None":
-        prior_matrix = None
+        elif prior == "None":
+            prior_matrix = None
 
     st.space()
     col_1, col_2, col_3 = st.columns([12, 3, 3])
@@ -840,7 +860,7 @@ def fit_model_dialog():
             if model_name.strip() == "" or model_name is None:
                 st.toast("🚫 The model name cannot be empty.", duration="long")
                 any_failed = True
-            if model_name in st.session_state.FACTOR_MODELS.models.keys():
+            if model_name in st.session_state.FACTOR_MODELS.keys():
                 st.toast("🚫 The model name must be unique.")
                 any_failed = True
 
@@ -849,7 +869,7 @@ def fit_model_dialog():
             except ValueError:
                 st.toast("🚫 The number of factors must be an integer.", duration="long")
                 any_failed = True
-            if number_of_factors < 1 or number_of_factors >= st.session_state.DATA.shape[1]:
+            if number_of_factors < 1 or number_of_factors >= len(manifest_vars):
                 st.toast("🚫 The number of factors must be at least 1 but less than the number of "
                          "manifest variables.", duration="long")
                 any_failed = True
@@ -867,10 +887,12 @@ def fit_model_dialog():
                          duration="long")
                 any_failed = True
 
-            check = process_prior_matrix(prior_matrix, rotation)
+            check = process_prior_matrix(prior_matrix.to_numpy(), rotation, manifest_vars)
             if not check["pass"]:
                 st.toast("🚫" + check["message"], duration="long")
                 any_failed = True
+            else:
+                prior_matrix = prior_matrix.to_numpy()
 
             if any_failed:
                 st.stop()
@@ -880,12 +902,13 @@ def fit_model_dialog():
             st.session_state.rotation = rotation
             st.session_state.prior_matrix = prior_matrix
             st.session_state.prior = prior
+            st.session_state.manifest_vars = manifest_vars
             st.session_state.FIT_MODEL = "Yes"
             st.rerun()
 
 
 def delete_factor_model(model_name):
-    st.session_state.FACTOR_MODELS.remove_factor_model(model_name)
+    del st.session_state.FACTOR_MODELS[model_name]
     del st.session_state.FIT_DETAILS[model_name]
     if model_name in st.session_state.INTERPRETATIONS:
         del st.session_state.INTERPRETATIONS[model_name]
@@ -893,47 +916,46 @@ def delete_factor_model(model_name):
 
 @st.dialog("View factor models", width="large", on_dismiss="rerun")
 def view_models_dialog():
-    model_name = st.selectbox("Choose a model", options=sorted(list(st.session_state.FACTOR_MODELS.models.keys())),
+    model_name = st.selectbox("Choose a model", options=sorted(list(st.session_state.FACTOR_MODELS.keys())),
                               width="stretch")
 
     if model_name is None:
         st.error("There are no factor models available.")
     else:
-        col_1, col_2, col_3 = st.columns([15, 6, 3])
+        col_1, col_2 = st.columns([21, 3])
         with col_2:
-            if st.button("Clear saved interpretation", width="stretch"):
-                st.session_state.INTERPRETATIONS[model_name] = (None, "")
-                st.rerun()
-        with col_3:
-            st.button("Delete model", on_click=delete_factor_model, args=(model_name, ),
+            st.button("Delete model", on_click=delete_factor_model, args=(model_name,),
                       width="stretch")
 
         st.subheader("Fit details")
 
-        factor_model = st.session_state.FACTOR_MODELS.models[model_name]
+        factor_model = st.session_state.FACTOR_MODELS[model_name].models[model_name]
         fit_details = st.session_state.FIT_DETAILS[model_name]
 
-        col_1, col_2, col_3, col_4 = st.columns([3, 3, 3, 3])
+        col_1, col_2, col_3, col_4, col_5 = st.columns(5)
         with col_1:
+            st.markdown("#### Number of manifest variables")
+            st.badge(str(len(fit_details["manifest_vars"])), color="green")
+        with col_2:
             st.markdown("#### Number of factors")
             st.badge(str(fit_details["number_of_factors"]), color="green")
-        with col_2:
+        with col_3:
             st.markdown("#### Rotation")
             st.badge(str(fit_details["rotation"]).capitalize(), color="green")
-        with col_3:
+        with col_4:
             st.markdown("#### Prior type")
             st.badge(str(fit_details["prior"]), color="green")
-        with col_4:
+        with col_5:
             st.markdown("#### V index")
-            v = st.session_state.FACTOR_MODELS.calculate_v_index(model_name)
+            v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
             v = np.round(v, 5) if v is not None else None
             st.badge(str(v), color="green")
 
         if fit_details["prior"] != "None":
             with st.expander("View prior matrix", expanded=False):
                 df_prior_matrix = pd.DataFrame(factor_model.prior_,
-                                               index=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])],
-                                               columns=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])])
+                                               index=fit_details["manifest_vars"],
+                                               columns=fit_details["manifest_vars"])
                 fig_prior = px.imshow(
                     df_prior_matrix,
                     text_auto="0.3f",
@@ -944,7 +966,7 @@ def view_models_dialog():
                 fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_prior.update_yaxes(tickmode="linear", dtick=1)
                 fig_prior.update_layout(
-                    height=20 * st.session_state.DATA.shape[1],
+                    height=min(900, max(50 * len(fit_details["manifest_vars"]), 300)),
                     title="Prior matrix"
                 )
                 st.plotly_chart(fig_prior, width="stretch")
@@ -957,10 +979,10 @@ def view_models_dialog():
             st.warning("No prior matrix was used for this model.")
 
         st.subheader("Model details")
-        model_analysis = st.session_state.FACTOR_MODELS.analyze_model(model_name).reset_index(drop=True)
+        model_analysis = st.session_state.FACTOR_MODELS[model_name].analyze_model(model_name).reset_index(drop=True)
         means = pd.DataFrame({
-            "variable": [f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
-            "mean": [st.session_state.DATA[f"X{idx + 1}"].mean() for idx in range(st.session_state.DATA.shape[1])]
+            "variable": [manifest_var for manifest_var in fit_details["manifest_vars"]],
+            "mean": [st.session_state.DATA[manifest_var].mean() for manifest_var in fit_details["manifest_vars"]]
         })
         model_analysis = pd.merge(left=model_analysis, right=means, on="variable", how="inner")
         if st.session_state.STATEMENTS_DF is not None:
@@ -970,7 +992,7 @@ def view_models_dialog():
                 ["variable", "Statement", "mean"] +
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
-            ]
+                ]
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
             cmap="RdBu", axis=None, subset=[col for col in model_analysis.columns if col.startswith("factor_")],
@@ -996,11 +1018,11 @@ def view_models_dialog():
             fig_loadings.update_xaxes(side="bottom", tickmode="linear", dtick=1)
             fig_loadings.update_yaxes(tickmode="linear", dtick=1)
             fig_loadings.update_layout(
-                height=25 * st.session_state.DATA.shape[1]
+                height=min(900, max(50 * len(fit_details["manifest_vars"]), 300))
             )
             st.plotly_chart(fig_loadings, width="stretch")
 
-        model_summary = st.session_state.FACTOR_MODELS.summarize_model(model_name)
+        model_summary = st.session_state.FACTOR_MODELS[model_name].summarize_model(model_name)
         factor_scores = model_summary["scores"]
         df_factor_scores = pd.DataFrame(factor_scores, columns=[f"factor_{idx + 1}"
                                                                 for idx in range(factor_scores.shape[1])])
@@ -1021,10 +1043,10 @@ def view_models_dialog():
             st.download_button("Download factor scores as CSV file", df_data_with_factor_scores.to_csv(),
                                file_name="factor_scores.csv", width="stretch")
 
-        if st.session_state.FACTOR_MODELS.models[model_name].is_orthogonal_:
+        if st.session_state.FACTOR_MODELS[model_name].models[model_name].is_orthogonal_:
             factor_corr_mat = np.eye(st.session_state.FIT_DETAILS[model_name]["number_of_factors"])
         else:
-            factor_corr_mat = st.session_state.FACTOR_MODELS.models[model_name].phi_
+            factor_corr_mat = st.session_state.FACTOR_MODELS[model_name].models[model_name].phi_
         df_factor_corr_mat = pd.DataFrame(factor_corr_mat,
                                           columns=[f"factor_{idx + 1}" for idx in range(factor_scores.shape[1])],
                                           index=[f"factor_{idx + 1}" for idx in range(factor_scores.shape[1])])
@@ -1055,7 +1077,6 @@ with col_2:
                 time.sleep(0.1)
 st.subheader("FactorFlow: An LLM-enhanced Visual Workbench for Exploratory Factor Analysis")
 st.markdown("Developed by [Justin Philip Tuazon](https://www.linkedin.com/in/justin-philip-tuazon/)")
-
 
 # Sidebar
 st.sidebar.title(":material/menu: Menu")
@@ -1109,7 +1130,7 @@ with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
                 st.session_state.STATEMENTS_DF = None
                 st.session_state.EMBEDDINGS = None
                 st.session_state.SEMANTIC_SIMILARITY_MATRIX = None
-                st.session_state.FACTOR_MODELS = None
+                st.session_state.FACTOR_MODELS = {}
                 st.session_state.FIT_DETAILS = {}
                 st.session_state.INTERPRETATIONS = {}
                 st.session_state.STATEMENT_TAGS = {}
@@ -1143,13 +1164,13 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
                   disabled=(st.session_state.USE_MODEL_LOADED != 1) or (st.session_state.DATA is None))
     with col_2:
         st.button("View", width="stretch", on_click=view_models_dialog,
-                  disabled=(st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.models) == 0))
+                  disabled=(st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0))
 
     st.subheader("Models")
-    if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.models) == 0:
+    if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0:
         st.warning("You have not estimated any factor model yet.")
-    elif len(st.session_state.FACTOR_MODELS.models) > 0:
-        model_names = sorted(list(st.session_state.FACTOR_MODELS.models.keys()))
+    elif len(st.session_state.FACTOR_MODELS) > 0:
+        model_names = sorted(list(st.session_state.FACTOR_MODELS.keys()))
         for model_name in model_names:
             st.badge(model_name, color="green")
 
@@ -1265,13 +1286,13 @@ with tab_dashboard:
     st.badge(":material/info: If your screen is not wide enough for the horizontal layout, "
              "consider temporarily hiding the *Menu* sidebar. You can also hide or show columns in tables.",
              color="blue")
-    if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.models.keys()) == 0:
+    if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS.keys()) == 0:
         st.warning("Fit a factor model first.")
     else:
         col_1, col_2 = st.columns(2)
         with col_1:
             selected_models = st.multiselect(
-                "Select models to examine", options=sorted(list(st.session_state.FACTOR_MODELS.models.keys())),
+                "Select models to examine", options=sorted(list(st.session_state.FACTOR_MODELS.keys())),
                 help="You can choose up to 2 models at a time.",
                 max_selections=2
             )
@@ -1280,60 +1301,76 @@ with tab_dashboard:
         if len(selected_models) == 0:
             st.warning("Choose at least one model.")
         else:
-            cols = st.columns(len(selected_models), border=True)
             multisets = [
-                st.session_state.FACTOR_MODELS.generate_multiset(model_name)
+                st.session_state.FACTOR_MODELS[model_name].generate_multiset(model_name)
                 for model_name in selected_models
             ]
             model_analyses = [
-                st.session_state.FACTOR_MODELS.analyze_model(model_name)
+                st.session_state.FACTOR_MODELS[model_name].analyze_model(model_name)
                 for model_name in selected_models
             ]
 
+            # Title
+            cols = st.columns(len(selected_models), border=True, vertical_alignment="center")
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
-                    multiset = multisets[i]
-                    model_analysis = model_analyses[i]
-                    loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
-                                                   if col.startswith("factor_")]]
-
                     st.subheader(model_name)
-                    st.divider()
+
+            # Fit details
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
 
                     st.badge("Fit details", color="blue")
                     fit_details = st.session_state.FIT_DETAILS[model_name]
 
-                    col_1, col_2, col_3, col_4 = st.columns([3, 3, 3, 3])
+                    col_1, col_2, col_3, col_4, col_5 = st.columns(5)
                     with col_1:
+                        st.write("Variables")
+                        st.badge(str(len(fit_details["manifest_vars"])), color="green")
+                    with col_2:
                         st.write("Factors")
                         st.badge(str(fit_details["number_of_factors"]), color="green")
-                    with col_2:
+                    with col_3:
                         st.write("Rotation")
                         st.badge(str(fit_details["rotation"]).capitalize(), color="green")
-                    with col_3:
+                    with col_4:
                         st.write("Prior type")
                         st.badge(str(fit_details["prior"]), color="green")
-                    with col_4:
+                    with col_5:
                         st.write("V index")
-                        v = st.session_state.FACTOR_MODELS.calculate_v_index(model_name)
+                        v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
                         v = np.round(v, 5) if v is not None else None
                         st.badge(str(v), color="green")
 
-                    st.space()
+            # Communalities and adequacies
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
+                    model_analysis = model_analyses[i]
 
-                    st.badge("Communalities", color="blue")
-                    communalities = model_analysis[["variable", "communality"]]
+                    st.badge("Communalities and adequacies", color="blue")
+                    comm_and_adeq = model_analysis[["variable", "communality", "kmo_msa"]]
                     if st.session_state.STATEMENTS_DF is not None:
-                        communalities = pd.merge(left=communalities, right=st.session_state.STATEMENTS_DF,
+                        comm_and_adeq = pd.merge(left=comm_and_adeq, right=st.session_state.STATEMENTS_DF,
                                                  left_on="variable", right_on="Variable", how="left")
-                        communalities = communalities[["variable", "Statement", "communality"]]
-                    communalities.columns = [col.upper() for col in communalities.columns]
-                    communalities_styled = communalities.reset_index(drop=True)
-                    communalities_styled = communalities_styled.style.background_gradient(
-                        cmap="Purples", axis=0, subset=["COMMUNALITY"], vmin=0, vmax=1.0
+                        comm_and_adeq = comm_and_adeq[["variable", "Statement", "communality", "kmo_msa"]]
+                    comm_and_adeq.columns = [col.upper() for col in comm_and_adeq.columns]
+                    comm_and_adeq_styled = comm_and_adeq.reset_index(drop=True)
+                    comm_and_adeq_styled = comm_and_adeq_styled.style.background_gradient(
+                        cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
                     )
-                    st.dataframe(communalities_styled, hide_index=True, key=f"{model_name}_communalities")
+                    st.dataframe(comm_and_adeq_styled, hide_index=True, key=f"{model_name}_comm_and_adeq")
+
+            # Interpretability plot
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
+                    multiset = multisets[i]
 
                     st.badge("Interpretability plot", color="blue")
                     similarity_type = ("Semantic Similarity"
@@ -1351,17 +1388,42 @@ with tab_dashboard:
                             "Loading Similarity": [item[1] for item in multiset]
                         })
 
-                    fig_v_plot = px.scatter(
-                        df_multiset,
-                        x=similarity_type,
-                        y="Loading Similarity",
-                        trendline="lowess",
-                        title=f"{similarity_type} vs Loading Similarity",
-                        subtitle=f"V = "
-                                 f"{st.session_state.FACTOR_MODELS.calculate_v_index(model_name)}"
-                    )
+                    try:
+                        with warnings.catch_warnings(record=True) as w:
+                            fig_v_plot = px.scatter(
+                                df_multiset,
+                                x=similarity_type,
+                                y="Loading Similarity",
+                                trendline="lowess",
+                                title=f"{similarity_type} vs Loading Similarity",
+                                subtitle=f"V = "
+                                         f"{st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)}"
+                            )
+
+                            if any("invalid value encountered in divide" in str(warn.message) for warn in w):
+                                st.toast("⚠️ Lowess failed to fit. Defaulting to OLS.")
+                                raise RuntimeWarning("Lowess failed to fit.")
+                    except RuntimeWarning:
+                        fig_v_plot = px.scatter(
+                            df_multiset,
+                            x=similarity_type,
+                            y="Loading Similarity",
+                            trendline="ols",
+                            title=f"{similarity_type} vs Loading Similarity",
+                            subtitle=f"V = "
+                                     f"{st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)}"
+                        )
 
                     st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
+
+            # Factor loadings
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
+                    model_analysis = model_analyses[i]
+                    loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
+                                                                   if col.startswith("factor_")]]
 
                     st.badge("Factor loadings", color="blue")
                     thresh = st.slider(
@@ -1409,7 +1471,7 @@ with tab_dashboard:
                     fig_loadings.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                     fig_loadings.update_yaxes(tickmode="linear", dtick=1)
                     fig_loadings.update_layout(
-                        height=25 * st.session_state.DATA.shape[1]
+                        height=min(900, max(50 * len(st.session_state.FIT_DETAILS[model_name]["manifest_vars"]), 300))
                     )
                     st.plotly_chart(fig_loadings, width="stretch", key=f"{model_name}_loadings")
 
@@ -1453,15 +1515,19 @@ with tab_dashboard:
                                     if st.session_state.STATEMENTS_DF is not None:
                                         statement = st.session_state.STATEMENTS_DF[
                                             st.session_state.STATEMENTS_DF["Variable"] == variable
-                                        ]["Statement"].item()
+                                            ]["Statement"].item()
                                         if statement is None:
                                             st.write(variable)
                                         else:
                                             st.write(f"{variable} - {statement}")
                                     else:
                                         st.write(variable)
-                            st.space()
-                    st.space()
+
+            # Factor breakdown
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
 
                     st.badge("Factor breakdown", color="blue")
 
@@ -1476,19 +1542,30 @@ with tab_dashboard:
                     )
                     st.plotly_chart(fig_tags_breakdown, width="stretch", key=f"{model_name}_tags_breakdown")
 
+            # Interpretation
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
+
                     st.badge("Interpretation", color="blue")
                     if st.session_state.STATEMENTS is None:
                         st.warning("The associated statements for the variables were not provided.")
                     else:
-                        st.write("Interpretations are generated using the groupings defined by the "
-                                 "absolute threshold above.")
+                        st.markdown("Interpretations are generated using the groupings defined by the "
+                                    "absolute threshold in :blue-badge[Factor loadings].")
                         col_1, col_2 = st.columns(2)
-                        with col_2:
-                            if st.button("Generate new interpretation",
+                        with col_1:
+                            if st.button("Generate interpretation",
                                          key=f"{model_name}_interpret_factor_model", width="stretch"):
                                 st.session_state.INTERPRETATIONS[model_name] = interpret_factor_model(
                                     df_loadings_discretized
                                 )
+                        with col_2:
+                            if st.button("Clear interpretation", width="stretch",
+                                         key=f"{model_name}_clear_interpretation"):
+                                st.session_state.INTERPRETATIONS[model_name] = (None, "")
+                                st.rerun()
                         if st.session_state.INTERPRETATIONS[model_name][0] is not None:
                             st.space()
                             if st.session_state.INTERPRETATIONS[model_name][0] != "Error":
