@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.0
+# FactorFlow V1.2.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -337,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.0
+        * Version Number: 1.2.1
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1351,7 +1351,7 @@ with tab_diagnostics:
                     ["communality", "kmo_msa"]
                 ]
             model_analysis.columns = [col.upper() for col in model_analysis.columns]
-            model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]]
+            model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
             model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
             model_analysis_styled = model_analysis_styled.style.background_gradient(
                 cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
