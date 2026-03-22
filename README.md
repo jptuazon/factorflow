@@ -18,6 +18,8 @@ FactorFlow (a Streamlit app) can be accessed here: [https://factorflow-efa.strea
 
 ![demo_4](./images/demo_4.jpeg)
 
+![demo_5](./images/demo_5.jpeg)
+
 # Notes
 * Right now, the tool does not support a correlation matrix as the main dataset and does not support
 polychoric correlations. These will be added in the future.
