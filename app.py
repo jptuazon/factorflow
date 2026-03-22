@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.1
+# FactorFlow V1.2.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -337,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.1
+        * Version Number: 1.2.2
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -480,6 +480,9 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
 
 @st.dialog("Upload dataset", width="medium")
 def upload_data_dialog():
+    st.badge(":material/info: Ensure that you have read *Getting started* in the *Overview* tab before "
+             "proceeding.",
+             color="blue")
     df_data = None
     data_file_name = None
     statements = None
@@ -504,7 +507,10 @@ def upload_data_dialog():
                 statements = txt_data.getvalue().decode("utf-8")
                 statements = statements.splitlines()
                 if len(statements) != df_data.shape[1]:
-                    st.error("The number of statements must match the number of columns of the main dataset.")
+                    st.error("The number of statements must match the number of columns in the main dataset.")
+                    st.stop()
+                elif len(statements) > len(set(statements)):
+                    st.error("The statements must be unique.")
                     st.stop()
                 else:
                     st.success("This list of statements is valid.")
@@ -577,6 +583,7 @@ def view_tags_dialog():
             "Choose statement",
             options=choices
         )
+        current_variable = current_variable.split(" - ")[0]
 
         current_tags = ", ".join(list(st.session_state.VARIABLE_TAGS[current_variable]))
         st.markdown("### Current tags:")
@@ -1520,7 +1527,6 @@ with tab_dashboard:
                                 )
 
                                 if any("invalid value encountered in divide" in str(warn.message) for warn in w):
-                                    st.toast("⚠️ Lowess failed to fit. Defaulting to OLS.")
                                     raise RuntimeWarning("Lowess failed to fit.")
                         except RuntimeWarning:
                             fig_v_plot = px.scatter(
@@ -1534,6 +1540,7 @@ with tab_dashboard:
                             )
 
                         st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
+                        st.warning("Lowess failed to fit. Defaulted to OLS.")
 
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
