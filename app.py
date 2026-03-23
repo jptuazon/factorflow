@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.5
+# FactorFlow V1.2.7
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -337,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.5
+        * Version Number: 1.2.7
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1215,6 +1215,7 @@ with tab_overview:
         * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for 
         Factor Models](https://arxiv.org/abs/2409.11525) for going beyond the classical methods
         * Large language model integration for factor model interpretation
+        * Multiple tabs available for diagnostics, deep dives, and comparisons
         
         Using this tool, practitioners can easily perform exploratory factor analysis and even leverage semantic or 
         arbitrary information for analyzing factor models.
