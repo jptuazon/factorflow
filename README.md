@@ -5,20 +5,26 @@ FactorFlow is an interactive tool intended to help practitioners perform explora
 * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., correlation heatmap) for core exploratory factor analysis
 * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for Factor Models](https://arxiv.org/abs/2409.11525) for going beyond the classical methods
 * Large language model integration for factor model interpretation
+* Multiple tabs available for diagnostics, deep dives, and comparisons
 
 Using this tool, practitioners can easily perform exploratory factor analysis and even leverage semantic or arbitrary information for analyzing factor models.
 
 FactorFlow (a Streamlit app) can be accessed here: [https://factorflow-efa.streamlit.app/](https://factorflow-efa.streamlit.app/). Sample datasets to get started can be downloaded [here](https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
 
-![demo_1](./images/demo_1.jpeg)
-
-![demo_2](./images/demo_2.jpeg)
-
-![demo_3](./images/demo_3.jpeg)
-
-![demo_4](./images/demo_4.jpeg)
-
-![demo_5](./images/demo_5.jpeg)
+<table border="0">
+  <tr>
+    <td><img src="./images/demo_1.jpeg" width="500"></td>
+    <td><img src="./images/demo_2.jpeg" width="500"></td>
+  </tr>
+  <tr>
+    <td><img src="./images/demo_3.jpeg" width="500"></td>
+    <td><img src="./images/demo_4.jpeg" width="500"></td>
+  </tr>
+  <tr>
+    <td><img src="./images/demo_5.jpeg" width="500"></td>
+    <td><img src="./images/demo_6.jpeg" width="500"></td>
+  </tr>
+</table>
 
 # Notes
 * Right now, the tool does not support a correlation matrix as the main dataset and does not support
