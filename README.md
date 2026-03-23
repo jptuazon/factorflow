@@ -1,6 +1,7 @@
 ![FactorFlow](./images/factor_flow_logo.png)
+<div align="center">An LLM-enhanced Visual Workbench for Exploratory Factor Analysis</div>
 
-# An LLM-enhanced Visual Workbench for Exploratory Factor Analysis
+# Description
 FactorFlow is an interactive tool intended to help practitioners perform exploratory factor analysis better. Using this tool, users can upload their dataset, fit various factor models, and perform factor rotations. It comes with the following key features or components:
 * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., correlation heatmap) for core exploratory factor analysis
 * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for Factor Models](https://arxiv.org/abs/2409.11525) for going beyond the classical methods
