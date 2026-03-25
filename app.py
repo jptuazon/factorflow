@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.7
+# FactorFlow V1.2.8
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -337,7 +337,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.7
+        * Version Number: 1.2.8
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1548,6 +1548,7 @@ with tab_dashboard:
 
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
+            threshs = []
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
@@ -1564,6 +1565,7 @@ with tab_dashboard:
                         is at least the threshold.
                         """, key=f"{model_name}_thresh_slider"
                     )
+                    threshs.append(thresh)
                     col_1, col_2 = st.columns(2)
                     with col_1:
                         show_raw = st.checkbox("Show original loadings instead?",
@@ -1691,7 +1693,7 @@ with tab_dashboard:
 
                     df_loadings_discretized = df_loadings
                     df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
-                        float(thresh)
+                        float(threshs[i])
                     ).astype(int)
 
                     st.badge("Interpretation", color="blue")
