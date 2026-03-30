@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.2.8
+# FactorFlow V1.3.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -25,6 +25,7 @@ import streamlit as st
 from groq import Groq
 from interpretablefa import InterpretableFA
 from streamlit_js_eval import streamlit_js_eval
+from streamlit_agraph import agraph, Node, Edge, Config
 
 
 # Universal sentence encoder set up
@@ -296,7 +297,7 @@ def generate_interpretation(factors):
                 }
             ],
             max_completion_tokens=2048,
-            temperature=0.1,
+            temperature=llm_temp,
             top_p=0.95,
             stream=False
         )
@@ -337,7 +338,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.2.8
+        * Version Number: 1.3.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -353,6 +354,52 @@ ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
 
 
 # App functions
+def get_mean_color(hex_colors):
+    if not hex_colors:
+        return "#000000"
+
+    rgbs = []
+    for h in hex_colors:
+        h = h.lstrip('#')
+        rgbs.append(tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)))
+
+    total_r = sum(r for r, g, b in rgbs)
+    total_g = sum(g for r, g, b in rgbs)
+    total_b = sum(b for r, g, b in rgbs)
+
+    num_colors = len(hex_colors)
+    avg_r = int(total_r / num_colors)
+    avg_g = int(total_g / num_colors)
+    avg_b = int(total_b / num_colors)
+
+    return '#{:02x}{:02x}{:02x}'.format(avg_r, avg_g, avg_b)
+
+
+def draw_colored_square(label, color_hex):
+    # CSS for the square
+    square_html = f"""
+    <span style="
+        display: inline-block; 
+        width: 15px; 
+        height: 15px; 
+        background-color: {color_hex}; 
+        border: 1px solid black; 
+        margin-right: 10px; 
+        vertical-align: middle;">
+    </span>
+    """
+    # Render HTML + Label
+    st.markdown(f"{square_html}<span style='vertical-align: middle;'>{label}</span>",
+                unsafe_allow_html=True)
+
+
+def hex_to_rgba(hex_color, opacity):
+    hex_color = hex_color.lstrip('#')
+    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
+
+
 def compute_tags_breakdown(df_loadings):
     df_loadings = df_loadings.copy().reset_index(drop=False)
     factor_cols = [col for col in df_loadings.columns if col.startswith("factor_")]
@@ -478,7 +525,7 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
     return result
 
 
-@st.dialog("Upload dataset", width="medium")
+@st.dialog(":material/upload: Upload dataset", width="medium")
 def upload_data_dialog():
     st.badge(":material/info: Ensure that you have read *Getting started* in the *Overview* tab before "
              "proceeding.",
@@ -539,7 +586,7 @@ def upload_data_dialog():
                 st.rerun()
 
 
-@st.dialog("Manifest variable tags", width="large")
+@st.dialog(":material/shoppingmode: Manifest variable tags", width="large")
 def view_tags_dialog():
     st.write("""
     Tags are a priori labellings of variables or statements. For instance, you can tag the statements "I am loyal to 
@@ -585,7 +632,7 @@ def view_tags_dialog():
             choices = [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])]
 
         current_variable = st.selectbox(
-            "Choose statement",
+            "Choose variable or statement",
             options=choices
         )
         current_variable = current_variable.split(" - ")[0]
@@ -642,7 +689,7 @@ def view_tags_dialog():
                 st.rerun()
 
 
-@st.dialog("View basic stats", width="large")
+@st.dialog(":material/analytics: View basic stats", width="large")
 def view_data_dialog():
     with st.expander("Raw data"):
         st.dataframe(st.session_state.DATA)
@@ -707,7 +754,7 @@ def view_data_dialog():
                 st.write(":hourglass_flowing_sand: Loading...")
 
 
-@st.dialog("Fit a new model", width="large", dismissible=False)
+@st.dialog(":material/add_chart: Fit a new factor model", width="large", dismissible=False)
 def fit_model_dialog():
     model_name = None
     number_of_factors = None
@@ -750,6 +797,7 @@ def fit_model_dialog():
                              "Semantics" uses the semantic similarity matrix. "Custom" lets you specify the exact 
                              matrix by uploading a CSV file. This is required when using the priorimax rotation and 
                              optional for other rotation methods.""", width="stretch")
+        show_prior_matrix = st.checkbox("Show exact prior matrix?")
 
     if len(manifest_vars) < 2:
         st.warning("Please select at least two manfiest variables first.")
@@ -763,20 +811,21 @@ def fit_model_dialog():
                 can_proceed = False
             if can_proceed:
                 semantic_similarity_mat = st.session_state.SEMANTIC_SIMILARITY_MATRIX.loc[manifest_vars, manifest_vars]
-                fig_semantic = px.imshow(
-                    semantic_similarity_mat,
-                    text_auto="0.3f",
-                    aspect="auto",
-                    color_continuous_scale='Blues',
-                    zmin=0, zmax=1
-                )
-                fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-                fig_semantic.update_yaxes(tickmode="linear", dtick=1)
-                fig_semantic.update_layout(
-                    height=min(900, max(50 * len(manifest_vars), 300)),
-                    title="The semantic similarity matrix will be used as the prior matrix."
-                )
-                st.plotly_chart(fig_semantic, width="stretch")
+                if show_prior_matrix:
+                    fig_semantic = px.imshow(
+                        semantic_similarity_mat,
+                        text_auto="0.3f",
+                        aspect="auto",
+                        color_continuous_scale='Blues',
+                        zmin=0, zmax=1
+                    )
+                    fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                    fig_semantic.update_yaxes(tickmode="linear", dtick=1)
+                    fig_semantic.update_layout(
+                        height=min(900, max(50 * len(manifest_vars), 300)),
+                        title="The semantic similarity matrix will be used as the prior matrix."
+                    )
+                    st.plotly_chart(fig_semantic, width="stretch")
                 prior_matrix = semantic_similarity_mat
         elif prior == "Grouped":
             cols = st.columns(3)
@@ -814,20 +863,21 @@ def fit_model_dialog():
                         prior_matrix.loc[pair[0], pair[1]] = 1
                         prior_matrix.loc[pair[1], pair[0]] = 1
 
-                fig_prior = px.imshow(
-                    prior_matrix,
-                    text_auto="0",
-                    aspect="auto",
-                    color_continuous_scale='Blues',
-                    zmin=0, zmax=1
-                )
-                fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-                fig_prior.update_yaxes(tickmode="linear", dtick=1)
-                fig_prior.update_layout(
-                    height=min(900, max(50 * prior_matrix.shape[1], 300)),
-                    title="This grouping matrix will be used as the prior matrix."
-                )
-                st.plotly_chart(fig_prior, width="stretch")
+                if show_prior_matrix:
+                    fig_prior = px.imshow(
+                        prior_matrix,
+                        text_auto="0",
+                        aspect="auto",
+                        color_continuous_scale='Blues',
+                        zmin=0, zmax=1
+                    )
+                    fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                    fig_prior.update_yaxes(tickmode="linear", dtick=1)
+                    fig_prior.update_layout(
+                        height=min(900, max(50 * prior_matrix.shape[1], 300)),
+                        title="This grouping matrix will be used as the prior matrix."
+                    )
+                    st.plotly_chart(fig_prior, width="stretch")
         elif prior == "Custom":
             prior_matrix = st.file_uploader(label="Upload CSV file for the prior matrix", type="csv", width="stretch",
                                             disabled=(prior != "Custom"))
@@ -837,20 +887,21 @@ def fit_model_dialog():
                 check = process_prior_matrix(prior_matrix, rotation, manifest_vars)
                 if check["pass"]:
                     prior_matrix = pd.DataFrame(prior_matrix, index=manifest_vars, columns=manifest_vars)
-                    fig_prior = px.imshow(
-                        prior_matrix,
-                        text_auto="0.3f",
-                        aspect="auto",
-                        color_continuous_scale='Blues',
-                        zmin=0, zmax=1
-                    )
-                    fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-                    fig_prior.update_yaxes(tickmode="linear", dtick=1)
-                    fig_prior.update_layout(
-                        height=min(900, max(50 * len(manifest_vars), 300)),
-                        title="This custom matrix will be used as the prior matrix."
-                    )
-                    st.plotly_chart(fig_prior, width="stretch")
+                    if show_prior_matrix:
+                        fig_prior = px.imshow(
+                            prior_matrix,
+                            text_auto="0.3f",
+                            aspect="auto",
+                            color_continuous_scale='Blues',
+                            zmin=0, zmax=1
+                        )
+                        fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                        fig_prior.update_yaxes(tickmode="linear", dtick=1)
+                        fig_prior.update_layout(
+                            height=min(900, max(50 * len(manifest_vars), 300)),
+                            title="This custom matrix will be used as the prior matrix."
+                        )
+                        st.plotly_chart(fig_prior, width="stretch")
                 else:
                     st.error(check["message"])
                     can_proceed = False
@@ -938,7 +989,7 @@ def delete_factor_model(model_name):
         del st.session_state.INTERPRETATIONS[model_name]
 
 
-@st.dialog("View factor models", width="large", on_dismiss="rerun")
+@st.dialog(":material/bar_chart: View factor models", width="large", on_dismiss="rerun")
 def view_models_dialog():
     model_name = st.selectbox("Choose a model", options=sorted(list(st.session_state.FACTOR_MODELS.keys())),
                               width="stretch")
@@ -1134,6 +1185,10 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
         st.badge("Connected", color="green")
     except Exception as e:
         st.badge("Not connected", color="red")
+    llm_temp = st.slider("LLM temperature", min_value=0.0, max_value=2.0, step=0.05, value=0.3,
+                         help="Larger values encourage randomness and creativity, while "
+                              "smaller values encourage determinism and focus. For more consistent interpretations "
+                              "and formatting, choose a value not greater than 0.3.")
 
 with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
     if st.session_state.DATA is None:
@@ -1546,6 +1601,28 @@ with tab_dashboard:
                         if lowess_failed:
                             st.warning("Lowess failed to fit. Defaulted to OLS.")
 
+            # Factor breakdown
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
+                    model_analysis = model_analyses[i]
+                    loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
+                                                                   if col.startswith("factor_")]]
+
+                    st.badge("Factor breakdown", color="blue")
+
+                    df_tags_breakdown = compute_tags_breakdown(loadings_only)
+                    fig_tags_breakdown = px.bar(
+                        df_tags_breakdown,
+                        x="Factor",
+                        y="Sum of Squared Loadings",
+                        color="Tag",
+                        barmode="stack",
+                        title="Sum of squared loadings per factor"
+                    )
+                    st.plotly_chart(fig_tags_breakdown, width="stretch", key=f"{model_name}_tags_breakdown")
+
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
             threshs = []
@@ -1634,7 +1711,6 @@ with tab_dashboard:
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
                                        file_name="factor_loadings.csv", width="stretch")
-                    st.space()
                     with st.expander("View variables / statements associated with each factor"):
                         for idx, factor in enumerate(df_loadings_discretized.columns):
                             factor_loadings = df_loadings_discretized[factor]
@@ -1656,27 +1732,145 @@ with tab_dashboard:
                                     else:
                                         st.write(variable)
 
-            # Factor breakdown
+            # Factor cross-loadings
             cols = st.columns(len(selected_models), border=True)
             for i in range(len(selected_models)):
                 with cols[i]:
+                    sub_col_1, sub_col_2 = st.columns([9, 1])
+                    with sub_col_1:
+                        st.badge("Factor cross-loadings", color="blue")
+                    with sub_col_2:
+                        with st.popover("", type="tertiary", icon=":material/help:",
+                                        key=f"{model_name}_popover", width="stretch"):
+                            st.markdown("""
+                            You can interact with the network graph:
+                            * Click on *Options* to see the legend and filters.
+                            * Hover on the node to see the associated statement, if any.
+                            * Click on a node or an edge to move the graph.
+                            * Click on a blank space to pan the canvas. Scroll to zoom in or out.
+                            * Right-click on the canvas to save the graph as an image.
+                            """)
+
+                    st.markdown("""
+                    Two nodes are connected if and only if they load high on a common factor, as defined by the
+                    absolute threshold in :blue-badge[Factor loadings].
+                    """)
+
                     model_name = selected_models[i]
                     model_analysis = model_analyses[i]
                     loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
                                                                    if col.startswith("factor_")]]
 
-                    st.badge("Factor breakdown", color="blue")
+                    df_loadings = loadings_only
+                    df_loadings = df_loadings.set_index("variable")
+                    factor_cols = [col for col in df_loadings.columns if col.startswith("factor_")]
 
-                    df_tags_breakdown = compute_tags_breakdown(loadings_only)
-                    fig_tags_breakdown = px.bar(
-                        df_tags_breakdown,
-                        x="Factor",
-                        y="Sum of Squared Loadings",
-                        color="Tag",
-                        barmode="stack",
-                        title="Sum of squared loadings per factor"
+                    df_loadings_discretized = df_loadings
+                    df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
+                        float(threshs[i])
+                    ).astype(int)
+
+                    with st.expander("Options"):
+                        sub_cols = st.columns(3)
+                        for j in range(df_loadings_discretized.shape[1]):
+                            with sub_cols[j % 3]:
+                                draw_colored_square(df_loadings_discretized.columns[j],
+                                                    px.colors.qualitative.Plotly[j])
+
+                        st.caption("""
+                        If a pair of manifest variables has more than one factor in common, the 
+                        color of the edge connecting the pair will be the average of the colors of the 
+                        common factors. Thicker edges indicate more factors in common.
+                        """)
+
+                        selected_factors = st.multiselect(
+                            "Choose factors to display",
+                            options=df_loadings_discretized.columns.tolist(),
+                            default=df_loadings_discretized.columns.tolist(),
+                            key=f"{model_name}_factors_to_display"
+                        )
+
+                        if st.session_state.STATEMENTS is not None:
+                            mv_choices = [f"X{i + 1} - {st.session_state.STATEMENTS[i]}"
+                                          for i in range(st.session_state.DATA.shape[1])]
+                        else:
+                            mv_choices = [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])]
+                        selected_mvs = st.multiselect(
+                            "Choose manifest variables to display",
+                            options=mv_choices,
+                            default=mv_choices,
+                            key=f"{model_name}_mvs_to_display"
+                        )
+                        selected_mvs = [selected_mv.split(" - ")[0] for selected_mv in selected_mvs]
+
+                    nodes = []
+                    node_font = {
+                        "color": "black",
+                        "strokeWidth": 3,
+                        "strokeColor": "rgba(255, 255, 255, 0.7)"
+                    }
+                    for mv in st.session_state.FIT_DETAILS[model_name]["manifest_vars"]:
+                        if mv not in selected_mvs:
+                            continue
+                        if st.session_state is not None:
+                            title = st.session_state.STATEMENTS_DF[
+                                st.session_state.STATEMENTS_DF["Variable"] == mv
+                            ]["Statement"].item()
+                        else:
+                            title = mv
+                        nodes.append(
+                            Node(
+                                id=mv, label=mv, size=10,
+                                color="#CDCDCD", font=node_font,
+                                title=title
+                            )
+                        )
+
+                    edge_registry = {}
+                    groupings = {
+                        col: df_loadings_discretized.index[df_loadings_discretized[col] == 1].tolist()
+                        for col in df_loadings_discretized.columns
+                    }
+                    for factor, manifest_vars in groupings.items():
+                        if factor not in selected_factors:
+                            continue
+                        if len(manifest_vars) == 0:
+                            continue
+                        factor = int(factor.replace("factor_", "")) - 1
+                        for node_1, node_2 in combinations(manifest_vars, 2):
+                            if node_1 not in selected_mvs or node_2 not in selected_mvs:
+                                continue
+                            edge_id = tuple(sorted([node_1, node_2]))
+                            if edge_id in edge_registry.keys():
+                                edge_registry[edge_id].append(factor)
+                            else:
+                                edge_registry[edge_id] = [factor]
+
+                    edges = []
+                    for edge_id, factors in edge_registry.items():
+                        colors = [
+                            px.colors.qualitative.Plotly[factor]
+                            for factor in factors
+                        ]
+                        final_color = get_mean_color(colors)
+                        edges.append(Edge(source=edge_id[0], target=edge_id[1], color=hex_to_rgba(final_color, 0.5),
+                                          width=(2 + 2 * len(colors))))
+
+                    network_config = Config(
+                        width=None,
+                        height=500,
+                        directed=False,
+                        physics=True,
+                        nodeHighlightBehavior=True,
+                        updateDelay=100,
+                        panAndZoom=True,
+                        staticGraph=False
                     )
-                    st.plotly_chart(fig_tags_breakdown, width="stretch", key=f"{model_name}_tags_breakdown")
+
+                    if len(nodes) > 0:
+                        selected_node = agraph(nodes, edges, network_config)
+                    else:
+                        st.warning("Select at least one manifest variable.")
 
             # Interpretation
             cols = st.columns(len(selected_models), border=True)
