@@ -15,3 +15,4 @@ streamlit>=1.50.0
 groq
 streamlit-js-eval
 protobuf<7
+streamlit-agraph
