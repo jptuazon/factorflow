@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.3.0
+# FactorFlow V1.3.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -233,62 +233,115 @@ def generate_interpretation(factors):
                 {
                     "role": "system",
                     "content": """
-                    You are an expert in exploratory factor analysis. Your job is to be an "EFA Factor 
-                    Interpretation Assistant". Basically, for each factor in a factor model, you have to come up 
-                    with a short but appropriate factor label that encapsulates the statements associated with it. 
-                    You also have to provide a description of the factor. Finally, you need to provide a 
-                    justification of your labels and descriptions. Cite specific statements that led you to your 
-                    interpretation for each factor.
+                    You are an expert in Exploratory Factor Analysis (EFA). 
+                    Your role is to act as an "EFA Factor Interpretation Assistant."
                     
-                    The input will be given to you in the following format:
+                    For each factor, you must:
+                    1. Rewrite and enumerate the statements as "Statement 1", "Statement 2", etc.
+                    2. Generate a concise factor label (2–4 words only).
+                    3. Provide a clear description of the latent construct represented by the factor.
+                    4. Provide a qualitative assessment of the consistency of the statements.
+                    5. Provide a justification explaining your interpretations.
                     
-                        factor_1:
-                        - [STATEMENT 1]
-                        - [STATEMENT 2]
-                        factor_2:
-                        - [STATEMENT 3]
-                        - [STATEMENT 4]
-                        
-                    The number of factors will vary and the number of statements for each factor will also vary.
+                    Important:
+                    - Each factor MUST include ALL five sections:
+                      Statements, Label, Description, Consistency, and Justification.
+                    - Do NOT omit any section for any factor.
+                    - All factors must follow the exact same structure.
                     
-                    Requirements:
-                    1. Each label should be 2-4 words.
-                    2. Each description should explain the underlying latent construct.
-                    3. Each justification should explain why the label and description are appropriate.
-                    4. Strictly follow the format of the sample output. Do not add any other filler text such as 
-                    "Based on the input, here's what I think.".
-                    5. Make sure to do the procedure for every factor.
-                    6. Format the output properly. Bold the factor name, add line breaks between the label, the 
-                    description, and the justification. Bold "Label", "Description", and "Justification", too. Add a 
-                    horizontal line between each factor block, as shown in the sample.
-                    7. In the justification, feel free to be creative but logical. In addition to citing specific 
-                    statements, provide additional explanation.
+                    Empty Factor Rule:
+                    - If a factor contains no statements:
+                      - Write: No statements under the **Statements** section.
+                      - For Label, Description, Consistency, and Justification, write: Not applicable.
+                      - Do NOT attempt to infer or generate content.
                     
-                    Sample output:
+                    Statements Section Requirements:
+                    - List ALL statements under the factor.
+                    - Format as:
+                      Statement 1: [full statement]
+                      Statement 2: [full statement]
+                    - Preserve the original wording exactly (do NOT paraphrase).
+                    - Number statements in the order given in the input.
                     
-                    factor_1
+                    Consistency Definition:
+                    - Consistency refers to how well the statements within a factor reflect a single coherent 
+                    underlying construct.
                     
-                    • Label: Nostalgia
+                    Consistency Requirements:
+                    - Provide a qualitative explanation (do NOT use labels such as High/Moderate/Low).
+                    - Refer to statements using their labels (e.g., "Statement 1", "Statement 2").
+                    - Explain whether the statements align, partially overlap, or conflict.
+                    - Identify any statements that seem out of place, if applicable.
                     
-                    • Description: This factor refers to how much nostalgia drives the purchasing behavior 
-                    of the consumer.
+                    Justification Requirements:
+                    - Cite at least two statements using their labels (e.g., "Statement 1").
+                    - Explain how they support BOTH:
+                      (a) the label and description, and  
+                      (b) the consistency assessment.
+                    - Go beyond restating—provide reasoning.
                     
-                    • Justification: The statements "I am loyal to brands I have used before." and "I associate 
-                    products with memories." suggest that nostalgia drives this factor.
+                    Depth Requirement:
+                    - Avoid surface-level or generic interpretations.
+                    - Identify the underlying psychological, behavioral, or attitudinal construct.
+                    - Prefer abstract constructs over literal summaries of statements.
                     
-                    -----------------------------------
+                    Unifying Theme Rule:
+                    - The label and description must reflect what ALL statements collectively represent,
+                      not just a topic they mention.
                     
-                    factor_2
+                    Conflict Handling:
+                    - If statements reflect multiple distinct or conflicting themes:
+                      - Identify the dominant theme.
+                      - Note secondary or conflicting themes in the Consistency section.
+                      - Do NOT force an artificial single interpretation.
                     
-                    • Label: Practicality
+                    Ambiguity Handling:
+                    - If a statement is vague or ambiguous:
+                      - Acknowledge this in the Consistency or Justification section.
+                      - Explain how this affects interpretation.
                     
-                    • Description: This factor refers to how much practicality drives the purchasing behavior of 
-                    the consumer.
+                    Redundancy Rule:
+                    - Do NOT repeat the same explanation across Description, Consistency, and Justification.
+                    - Each section must contribute distinct information.
                     
-                    • Justification: The statements "I look for functionality over aesthetics." and "I always 
-                    consider my budget when buying a product." suggest that this factor refers to how much 
-                    practicality is valued.
+                    Output Requirements (EXTREMELY STRICT):
+                    - Process ALL factors. Do NOT output only one or a few factors. Process ALL.
+                    - Every factor MUST contain ALL five sections. Again, ALL sections. Ensure that.
+                    - Do NOT add or remove sections.
+                    - Do NOT add any introductory or concluding text.
+                    - Follow formatting EXACTLY.
+                    - Follow ALL RULES EXACTLY.
                     
+                    Formatting Rules:
+                    - Bold the factor name (e.g., **factor_1**).
+                    - Insert ONE blank line after the factor name before the Statements section.
+                    - Use bullet points (•) for each section.
+                    - Bold section headers: Statements, Label, Description, Consistency, Justification.
+                    - Insert one blank line between sections.
+                    - Add a separator line between factors:
+                      -----------------------------------
+                    
+                    Critical Instruction:
+                    - Do NOT quote full statements outside the "Statements" section.
+                    - Always refer to statements using their labels (e.g., "Statement 1").
+                    
+                    Output Template (APPLY TO EVERY FACTOR WITHOUT EXCEPTION):
+                    
+                    **factor_X**
+                    
+                    • **Statements**:
+                      Statement 1: [full statement]  
+                      Statement 2: [full statement]
+                    
+                    • **Label**: [2–4 word label]
+                    
+                    • **Description**: [Explanation of the latent construct]
+                    
+                    • **Consistency**: [Qualitative explanation referencing Statement numbers]
+                    
+                    • **Justification**: [Use Statement numbers and explain reasoning]
+                    
+                    -----------------------------------   
                     """
                 },
                 {
@@ -296,15 +349,25 @@ def generate_interpretation(factors):
                     "content": factors
                 }
             ],
-            max_completion_tokens=2048,
+            max_completion_tokens=4096,
             temperature=llm_temp,
             top_p=0.95,
             stream=False
         )
 
+        finish_reason = interpretation.choices[0].finish_reason
+
+        if finish_reason == "length":
+            st.toast("⚠️ LLM output was truncated due to token limits.")
+        elif finish_reason == "content_filter":
+            st.toast("⚠️ LLM output was omitted due to safety filters.")
+        elif finish_reason == "stop":
+            st.toast("✅ LLM output was successfully generated.")
+
         return llm_model_id, interpretation.choices[0].message.content.replace("\n", "  \n")
     except Exception:
-        return "Error", "Rate limit reached. Please try again in a while or try a different model."
+        st.toast("❌ Cannot use current LLM. Please try again in a while or use a different model.")
+        return "Error", "Rate limit reached. Please try again in a while or use a different model."
 
 
 def interpret_factor_model(df_discretized_loadings):
@@ -338,7 +401,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "About": """
-        * Version Number: 1.3.0
+        * Version Number: 1.3.1
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1178,7 +1241,8 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
     st.session_state.CURRENT_LLM_MODEL_ID = st.selectbox(
         "Model in use",
         options=LLM_MODEL_IDS,
-        help="Different large language models may give different results. They also have different usage rate limits."
+        help="Different large language models may give different results. They also have different usage rate limits. "
+             "Note that regardless of the model, the maximum completion tokens is 4096."
     )
     try:
         llms = st.session_state.LLM_CLIENT.models.list()
@@ -1896,6 +1960,9 @@ with tab_dashboard:
                     else:
                         st.markdown("Interpretations are generated using the groupings defined by the "
                                     "absolute threshold in :blue-badge[Factor loadings].")
+                        st.caption("Note that this is not intended to replace the researcher's judgment and is "
+                                   "only meant to help it. For instance, one should cross-check the LLM findings "
+                                   "with the sign of the loadings, the cross-loadings, and so on.")
                         col_1, col_2 = st.columns(2)
                         with col_1:
                             if st.button("Generate interpretation",
