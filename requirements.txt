@@ -16,3 +16,5 @@ groq
 streamlit-js-eval
 protobuf<7
 streamlit-agraph
+streamlit-extras
+pygwalker
