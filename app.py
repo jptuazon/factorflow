@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.0.2
+# FactorFlow V2.1.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -402,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.0.2
+        * Version Number: 2.1.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -440,7 +440,6 @@ def get_mean_color(hex_colors):
 
 
 def draw_colored_square(label, color_hex):
-    # CSS for the square
     square_html = f"""
     <span style="
         display: inline-block; 
@@ -452,7 +451,7 @@ def draw_colored_square(label, color_hex):
         vertical-align: middle;">
     </span>
     """
-    # Render HTML + Label
+
     st.markdown(f"{square_html}<span style='vertical-align: middle;'>{label}</span>",
                 unsafe_allow_html=True)
 
@@ -1965,7 +1964,7 @@ with tab_dashboard:
                                 col for col in df_loadings_download.columns
                                 if col.startswith("FACTOR_")
                             ]
-                            ]
+                        ]
                     st.download_button("Download as CSV file",
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
@@ -1990,6 +1989,176 @@ with tab_dashboard:
                                             st.write(f"{variable} - {statement}")
                                     else:
                                         st.write(variable)
+
+                    st.space()
+
+            # Loadings comparison
+            cols = st.columns(len(selected_models), border=True)
+            for i in range(len(selected_models)):
+                with cols[i]:
+                    model_name = selected_models[i]
+                    model_analysis = model_analyses[i]
+                    loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
+                                                                   if col.startswith("factor_")]]
+                    st.subheader(":material/compare: Loadings comparison")
+                    st.space()
+
+                    loadings_only_long = pd.melt(
+                        loadings_only,
+                        id_vars="variable",
+                        value_vars=[col for col in loadings_only.columns if col.startswith("factor_")],
+                        var_name="factor",
+                        value_name="loading"
+                    )
+                    loadings_only_long["x_num"] = loadings_only_long["variable"].str.replace("X", "").astype(int)
+                    loadings_only_long["f_num"] = loadings_only_long["factor"].str.replace("factor_", "").astype(int)
+                    loadings_only_long = loadings_only_long.sort_values(["x_num", "f_num"]).reset_index(drop=True)
+
+                    sorted_variables = loadings_only_long["variable"].unique().tolist()
+                    sorted_factors = loadings_only_long["factor"].unique().tolist()
+
+                    can_proceed = True
+
+                    col_1, col_2 = st.columns(2)
+                    with col_1:
+                        compare_across = st.selectbox(
+                            "Compare across",
+                            options=["Manifest Variables", "Latent Factors"],
+                            key=f"{model_name}_compare_across"
+                        )
+                        x_var = "variable" if compare_across == "Manifest Variables" else "factor"
+                        color_var = "variable" if x_var == "factor" else "factor"
+                    with col_2:
+                        compare_layout = st.selectbox(
+                            "Layout",
+                            options=["Combined", "Faceted"],
+                            key=f"{model_name}_compare_layout"
+                        )
+
+                    if compare_layout == "Faceted":
+                        choices = sorted_variables if color_var == "variable" else sorted_factors
+                        choices = choices.copy()
+                        facet_filter = st.multiselect(
+                            "Filter",
+                            options=choices,
+                            key=f"{model_name}_facet_filter"
+                        )
+
+                        if len(facet_filter) > 0:
+                            loadings_only_long = loadings_only_long[
+                                loadings_only_long[color_var].isin(facet_filter)
+                            ]
+                            sorted_variables = loadings_only_long["variable"].unique().tolist()
+                            sorted_factors = loadings_only_long["factor"].unique().tolist()
+                        else:
+                            st.warning(f"""
+                            Please select at least one {color_var}.
+                            """)
+                            can_proceed = False
+
+                    if not can_proceed:
+                        pass
+                    elif compare_layout == "Combined":
+                        fig_pseudo_parallel = px.line(
+                            loadings_only_long,
+                            x=x_var,
+                            y="loading",
+                            color=color_var,
+                            category_orders={
+                                "variable": sorted_variables,
+                                "factor": sorted_factors
+                            },
+                            title=f"Loadings Across {compare_across}",
+                            markers=True
+                        )
+
+                        fig_pseudo_parallel.update_traces(line={
+                            "width": 3
+                        }, opacity=0.8)
+
+                        fig_pseudo_parallel.update_xaxes(
+                            type="category",
+                            categoryorder="array",
+                            categoryarray=(
+                                sorted_factors if x_var == "factor" else sorted_variables
+                            )
+                        )
+                        fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
+                                                         if x_var == "variable" else "Latent Factor", row=1, col=1)
+
+                        fig_pseudo_parallel.update_yaxes(
+                            title_text="Loading",
+                            showgrid=False,
+                            zeroline=False
+                        )
+
+                        fig_pseudo_parallel.update_layout(
+                            legend_title=color_var.capitalize()
+                        )
+                    else:
+                        if len(sorted_factors if color_var == "factor" else sorted_variables) == 1:
+                            row_spacing = 0.0
+                        else:
+                            row_spacing = 0.20 / (len(sorted_factors if color_var == "factor"
+                                                      else sorted_variables) - 1)
+
+                        fig_pseudo_parallel = px.line(
+                            loadings_only_long,
+                            x=x_var,
+                            y="loading",
+                            facet_row=color_var,
+                            height=max(350, 200 * len(sorted_factors if color_var == "factor" else sorted_variables)),
+                            color=color_var,
+                            category_orders={
+                                "variable": sorted_variables,
+                                "factor": sorted_factors
+                            },
+                            facet_row_spacing=row_spacing,
+                            markers=True
+                        )
+
+                        fig_pseudo_parallel.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+                        fig_pseudo_parallel.update_traces(line=dict(width=3), opacity=0.8)
+                        fig_pseudo_parallel.update_xaxes(
+                            type="category",
+                            categoryorder="array",
+                            categoryarray=(
+                                sorted_factors if x_var == "factor" else sorted_variables
+                            )
+                        )
+                        fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
+                                                         if x_var == "variable" else "Latent Factor", row=1, col=1,
+                                                         side="bottom")
+                        fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
+                                                         if x_var == "variable" else "Latent Factor",
+                                                         row=len(sorted_factors if color_var == "factor"
+                                                                 else sorted_variables), col=1, side="top",
+                                                         showticklabels=True)
+
+                        fig_pseudo_parallel.update_yaxes(
+                            title_text="Loading",
+                            showgrid=False,
+                            zeroline=False
+                        )
+
+                        fig_pseudo_parallel.update_layout(
+                            showlegend=False,
+                            margin=dict(t=100, b=80),
+                            title=dict(
+                                text=f"Loadings Across {compare_across}",
+                                xref="container",
+                                yref="container",
+                                y=1,
+                                x=0,
+                                xanchor="left",
+                                yanchor="top"
+                            )
+                        )
+                        st.space()
+
+                    if can_proceed:
+                        st.plotly_chart(fig_pseudo_parallel, width="stretch", key=f"{model_name}_pseudo_parallel")
 
                     st.space()
 
