@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.1.0
+# FactorFlow V2.1.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -402,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.1.0
+        * Version Number: 2.1.1
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -554,14 +554,15 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
                 try:
                     val = float(val)
                     prior_matrix[row, col] = val
-                except ValueError:
+                except ValueError as e:
                     result["pass"] = False
-                    result["message"] = "All entries must be either a number or blank."
+                    result["message"] = (f"Prior matrix: All entries must be either a number or blank. + {e} "
+                                         f"+ {val} + {type(val)}")
                     break
 
                 if val < 0 or val > 1:
                     result["pass"] = False
-                    result["message"] = "All entries must be between 0 and 1 (inclusive)."
+                    result["message"] = "Prior matrix: All entries must be between 0 and 1 (inclusive)."
                     break
 
             if val is None:
@@ -570,17 +571,17 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
                     continue
                 else:
                     result["pass"] = False
-                    result["message"] = "The matrix must be symmetric."
+                    result["message"] = "The prior matrix must be symmetric."
                     break
             else:
                 if prior_matrix[col, row] is None or prior_matrix[col, row] == "":
                     result["pass"] = False
-                    result["message"] = "The matrix must be symmetric."
+                    result["message"] = "The prior matrix must be symmetric."
                     break
                 else:
                     if not np.isclose(val, prior_matrix[col, row]):
                         result["pass"] = False
-                        result["message"] = "The matrix must be symmetric."
+                        result["message"] = "The prior matrix must be symmetric."
                         break
                     else:
                         prior_matrix[col, row] = val
