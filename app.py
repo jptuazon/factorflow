@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.1.2
+# FactorFlow V2.1.3
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -402,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.1.2
+        * Version Number: 2.1.3
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -522,7 +522,8 @@ def compute_tags_breakdown(df_loadings):
 def process_prior_matrix(prior_matrix, rotation, manifest_vars):
     result = {
         "pass": True,
-        "message": "Passed."
+        "message": "Passed.",
+        "processed_matrix": None
     }
 
     prior_matrix = prior_matrix.copy()
@@ -556,10 +557,9 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
                 try:
                     val = float(val)
                     prior_matrix[row, col] = val
-                except ValueError as e:
+                except ValueError:
                     result["pass"] = False
-                    result["message"] = (f"Prior matrix: All entries must be either a number or blank. + {e} "
-                                         f"+ {val} + {type(val)}")
+                    result["message"] = "Prior matrix: All entries must be either a number or blank."
                     break
 
                 if val < 0 or val > 1:
@@ -587,6 +587,8 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
                         break
                     else:
                         prior_matrix[col, row] = val
+
+    result["processed_matrix"] = prior_matrix
 
     return result
 
@@ -962,6 +964,7 @@ def fit_model_dialog():
 
                 check = process_prior_matrix(prior_matrix, rotation, manifest_vars)
                 if check["pass"]:
+                    prior_matrix = check["processed_matrix"].copy()
                     prior_matrix = pd.DataFrame(prior_matrix, index=manifest_vars, columns=manifest_vars)
                     if show_prior_matrix:
                         fig_prior = px.imshow(
@@ -1043,7 +1046,7 @@ def fit_model_dialog():
                         st.toast("🚫" + check["message"], duration="long")
                         any_failed = True
                     else:
-                        prior_matrix = prior_matrix.to_numpy()
+                        prior_matrix = check["processed_matrix"].copy()
                 else:
                     prior_matrix = None
 
