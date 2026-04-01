@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.0.0
+# FactorFlow V2.0.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -402,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.0.0
+        * Version Number: 2.0.1
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1838,7 +1838,7 @@ with tab_dashboard:
 
                     st.subheader(":material/donut_small: Factor breakdown")
                     st.space()
-
+                    show_breakdown_values = st.checkbox("Show value per tag?", value=True)
                     df_tags_breakdown = compute_tags_breakdown(loadings_only)
                     fig_tags_breakdown = px.bar(
                         df_tags_breakdown,
@@ -1849,7 +1849,6 @@ with tab_dashboard:
                         barmode="stack",
                         title="Sum of Squared Loadings per Factor"
                     )
-                    fig_tags_breakdown.update_traces(textposition="outside", texttemplate="%{text:.3f}")
                     fig_tags_breakdown.update_layout(
                         yaxis=dict(
                             visible=True,
@@ -1859,6 +1858,23 @@ with tab_dashboard:
                             zeroline=False
                         )
                     )
+                    if show_breakdown_values:
+                        fig_tags_breakdown.update_traces(textposition="inside", texttemplate="%{text:.3f}",
+                                                         insidetextanchor="middle")
+                    else:
+                        fig_tags_breakdown.update_traces(textposition="none")
+
+                    totals = df_tags_breakdown.groupby("Factor")["Sum of Squared Loadings"].sum()
+                    for factor, total in totals.items():
+                        fig_tags_breakdown.add_annotation(
+                            x=factor,
+                            y=total,
+                            text=f"{total:.3f}",
+                            showarrow=False,
+                            yshift=10,
+                            xanchor="center",
+                            yanchor="bottom"
+                        )
                     st.plotly_chart(fig_tags_breakdown, width="stretch", key=f"{model_name}_tags_breakdown")
 
                     st.space()
