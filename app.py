@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V1.3.1
+# FactorFlow V2.0.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -26,6 +26,10 @@ from groq import Groq
 from interpretablefa import InterpretableFA
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_agraph import agraph, Node, Edge, Config
+from streamlit_extras.card_selector import card_selector
+from streamlit_extras.floating_button import floating_button
+from streamlit_extras.scroll_to_element import scroll_to_element
+from pygwalker.api.streamlit import StreamlitRenderer
 
 
 # Universal sentence encoder set up
@@ -89,6 +93,9 @@ def clear_embeddings():
 st.session_state.USE_MODEL_LOADED = load_use_model()
 
 # Session state
+if "SCROLL_COUNTER" not in st.session_state:
+    st.session_state.SCROLL_COUNTER = 0
+
 if "DATA" not in st.session_state:
     st.session_state.DATA = None
 
@@ -233,27 +240,24 @@ def generate_interpretation(factors):
                 {
                     "role": "system",
                     "content": """
-                    You are an expert in Exploratory Factor Analysis (EFA). 
-                    Your role is to act as an "EFA Factor Interpretation Assistant."
+                    You are an expert in Exploratory Factor Analysis (EFA). Your role is to act as an 
+                    "EFA Factor Interpretation Assistant".
                     
                     For each factor, you must:
-                    1. Rewrite and enumerate the statements as "Statement 1", "Statement 2", etc.
-                    2. Generate a concise factor label (2–4 words only).
+                    1. Rewrite and enumerate the statements as "Statement 1", "Statement 2", and so on.
+                    2. Generate a concise factor label (1 to 4 words only).
                     3. Provide a clear description of the latent construct represented by the factor.
-                    4. Provide a qualitative assessment of the consistency of the statements.
-                    5. Provide a justification explaining your interpretations.
+                    4. Provide a justification explaining your interpretations.
                     
-                    Important:
-                    - Each factor MUST include ALL five sections:
-                      Statements, Label, Description, Consistency, and Justification.
-                    - Do NOT omit any section for any factor.
-                    - All factors must follow the exact same structure.
-                    
-                    Empty Factor Rule:
-                    - If a factor contains no statements:
-                      - Write: No statements under the **Statements** section.
-                      - For Label, Description, Consistency, and Justification, write: Not applicable.
-                      - Do NOT attempt to infer or generate content.
+                    Important instructions to follow (EXTREMELY STRICT):
+                    - Each factor MUST include ALL four sections: Statements, Label, Description, and Justificiation.
+                    - Process ALL factors. Do NOT omit any section for any factor.
+                    - All factors must follow the exact same output structure and format.
+                    - Do NOT quote full statements outside the "Statements" section.
+                    - Each factor MUST include ALL four sections: Statements, Label, Description, and Justification.
+                    - Do NOT omit any section for any factor. Always refer to statements using their labels 
+                      (e.g., "Statement 1").
+                    - Adhere to all rules and requirements listed next.
                     
                     Statements Section Requirements:
                     - List ALL statements under the factor.
@@ -263,54 +267,38 @@ def generate_interpretation(factors):
                     - Preserve the original wording exactly (do NOT paraphrase).
                     - Number statements in the order given in the input.
                     
-                    Consistency Definition:
-                    - Consistency refers to how well the statements within a factor reflect a single coherent 
-                    underlying construct.
-                    
-                    Consistency Requirements:
-                    - Provide a qualitative explanation (do NOT use labels such as High/Moderate/Low).
-                    - Refer to statements using their labels (e.g., "Statement 1", "Statement 2").
-                    - Explain whether the statements align, partially overlap, or conflict.
-                    - Identify any statements that seem out of place, if applicable.
+                    Description Requirements:
+                    - Avoid surface-level or generic interpretations.
+                    - Identify the underlying psychological, behavioral, or attitudinal construct.
+                    - Prefer abstract constructs over literal summaries of statements.
                     
                     Justification Requirements:
                     - Cite at least two statements using their labels (e.g., "Statement 1").
                     - Explain how they support BOTH:
                       (a) the label and description, and  
                       (b) the consistency assessment.
-                    - Go beyond restating—provide reasoning.
+                    - Go beyond restating. Provide reasoning.
                     
-                    Depth Requirement:
-                    - Avoid surface-level or generic interpretations.
-                    - Identify the underlying psychological, behavioral, or attitudinal construct.
-                    - Prefer abstract constructs over literal summaries of statements.
-                    
-                    Unifying Theme Rule:
-                    - The label and description must reflect what ALL statements collectively represent,
-                      not just a topic they mention.
-                    
-                    Conflict Handling:
+                    Conflict Handling Rule:
                     - If statements reflect multiple distinct or conflicting themes:
                       - Identify the dominant theme.
-                      - Note secondary or conflicting themes in the Consistency section.
+                      - Note secondary or conflicting themes in the Description section.
                       - Do NOT force an artificial single interpretation.
+                      
+                    Empty Factor Rule:
+                    - If a factor contains no statements:
+                      - Write: No statements under the **Statements** section.
+                      - For Label, Description, and Justification, write: Not applicable.
+                      - Do NOT attempt to infer or generate content.
                     
-                    Ambiguity Handling:
+                    Ambiguity Handling Rule:
                     - If a statement is vague or ambiguous:
-                      - Acknowledge this in the Consistency or Justification section.
+                      - Acknowledge this in the Justification section.
                       - Explain how this affects interpretation.
                     
                     Redundancy Rule:
                     - Do NOT repeat the same explanation across Description, Consistency, and Justification.
                     - Each section must contribute distinct information.
-                    
-                    Output Requirements (EXTREMELY STRICT):
-                    - Process ALL factors. Do NOT output only one or a few factors. Process ALL.
-                    - Every factor MUST contain ALL five sections. Again, ALL sections. Ensure that.
-                    - Do NOT add or remove sections.
-                    - Do NOT add any introductory or concluding text.
-                    - Follow formatting EXACTLY.
-                    - Follow ALL RULES EXACTLY.
                     
                     Formatting Rules:
                     - Bold the factor name (e.g., **factor_1**).
@@ -318,12 +306,25 @@ def generate_interpretation(factors):
                     - Use bullet points (•) for each section.
                     - Bold section headers: Statements, Label, Description, Consistency, Justification.
                     - Insert one blank line between sections.
-                    - Add a separator line between factors:
-                      -----------------------------------
+                    - Add a separator line between factors: -----------------------------------
                     
-                    Critical Instruction:
-                    - Do NOT quote full statements outside the "Statements" section.
-                    - Always refer to statements using their labels (e.g., "Statement 1").
+                    Output Requirements (EXTREMELY STRICT):
+                    - You MUST process ALL factors. Again, ALL factors. Ensure that.
+                    - Every factor MUST contain ALL four sections. Again, ALL sections. Ensure that.
+                    - Do NOT add or remove sections.
+                    - Do NOT add any introductory or concluding text.
+                    - Follow formatting EXACTLY.
+                    - Follow ALL RULES AND REQUIREMENTS EXACTLY.
+                    
+                    Self-Check (DO NOT OUTPUT THIS SECTION):
+                    Before finalizing your response, internally verify that:
+                    - Every factor includes ALL four sections.
+                    - No section is missing or incorrectly formatted.
+                    - "No statements" and "Not applicable" are used correctly when required.
+                    - No full statements appear outside the Statements section.
+                    - All references use "Statement X" format.
+                    - Formatting exactly matches the template.
+                    - All rules and requirements are followed.
                     
                     Output Template (APPLY TO EVERY FACTOR WITHOUT EXCEPTION):
                     
@@ -336,8 +337,6 @@ def generate_interpretation(factors):
                     • **Label**: [2–4 word label]
                     
                     • **Description**: [Explanation of the latent construct]
-                    
-                    • **Consistency**: [Qualitative explanation referencing Statement numbers]
                     
                     • **Justification**: [Use Statement numbers and explain reasoning]
                     
@@ -377,7 +376,9 @@ def interpret_factor_model(df_discretized_loadings):
         factor_loadings = df_discretized_loadings[factor]
         variables = df_discretized_loadings[factor_loadings == 1].index.tolist()
 
+        input_for_llm += f"\n{factor}:\n"
         if len(variables) == 0:
+            input_for_llm += "- No statements."
             continue
         else:
             input_for_llm += f"\n{factor}:\n"
@@ -398,10 +399,10 @@ st.set_page_config(
     page_title="FactorFlow",
     page_icon=":bar_chart:",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 1.3.1
+        * Version Number: 2.0.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -423,7 +424,7 @@ def get_mean_color(hex_colors):
 
     rgbs = []
     for h in hex_colors:
-        h = h.lstrip('#')
+        h = h.lstrip("#")
         rgbs.append(tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)))
 
     total_r = sum(r for r, g, b in rgbs)
@@ -435,7 +436,7 @@ def get_mean_color(hex_colors):
     avg_g = int(total_g / num_colors)
     avg_b = int(total_b / num_colors)
 
-    return '#{:02x}{:02x}{:02x}'.format(avg_r, avg_g, avg_b)
+    return "#{:02x}{:02x}{:02x}".format(avg_r, avg_g, avg_b)
 
 
 def draw_colored_square(label, color_hex):
@@ -457,8 +458,8 @@ def draw_colored_square(label, color_hex):
 
 
 def hex_to_rgba(hex_color, opacity):
-    hex_color = hex_color.lstrip('#')
-    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    hex_color = hex_color.lstrip("#")
+    rgb = tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
     return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
 
@@ -596,6 +597,7 @@ def upload_data_dialog():
     df_data = None
     data_file_name = None
     statements = None
+    statements_file_name = None
 
     can_proceed = True
 
@@ -619,6 +621,7 @@ def upload_data_dialog():
                 if txt_data is not None:
                     statements = txt_data.getvalue().decode("utf-8")
                     statements = statements.splitlines()
+                    statements_file_name = txt_data.name
                     if len(statements) != df_data.shape[1]:
                         st.error("The number of statements must match the number of columns in the main dataset.")
                         can_proceed = False
@@ -639,6 +642,7 @@ def upload_data_dialog():
                 st.session_state.DATA = df_data
                 st.session_state.DATA_NAME = data_file_name
                 st.session_state.STATEMENTS = statements
+                st.session_state.STATEMENTS_NAME = statements_file_name
                 st.session_state.STATEMENTS_DF = pd.DataFrame({
                     "Variable": [f"X{idx + 1}" for idx in range(df_data.shape[1])],
                     "Statement": statements
@@ -743,7 +747,7 @@ def view_tags_dialog():
                 if input_type == "Manual":
                     st.session_state.VARIABLE_TAGS[current_variable] = new_tags
                 else:
-                    st.write(df_new_tags)
+                    st.dataframe(df_new_tags)
                     for idx, row in df_new_tags.iterrows():
                         variable = row["variable"]
                         tags = row["tags"].split(",") if not pd.isna(row["tags"]) else []
@@ -756,26 +760,7 @@ def view_tags_dialog():
 def view_data_dialog():
     with st.expander("Raw data"):
         st.dataframe(st.session_state.DATA)
-
-    with st.expander("Summary statistics"):
-        st.dataframe(st.session_state.DATA.describe())
-
-    with st.expander("Correlation matrix"):
-        corr_mat = st.session_state.DATA.corr()
-        fig_corr = px.imshow(
-            corr_mat,
-            text_auto="0.3f",
-            aspect="auto",
-            color_continuous_scale='RdBu',
-            zmin=-1, zmax=1
-        )
-        fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-        fig_corr.update_yaxes(tickmode="linear", dtick=1)
-        fig_corr.update_layout(
-            height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
-        )
-        st.plotly_chart(fig_corr, width="stretch")
-        st.dataframe(corr_mat)
+        st.space()
 
     with st.expander("Associated statement for each variable"):
         if st.session_state.STATEMENTS is None:
@@ -791,6 +776,30 @@ def view_data_dialog():
                 }
             )
             st.dataframe(var_statement)
+        st.space()
+
+    with st.expander("Summary statistics"):
+        st.dataframe(st.session_state.DATA.describe())
+        st.space()
+
+    with st.expander("Correlation matrix"):
+        corr_mat = st.session_state.DATA.corr()
+        fig_corr = px.imshow(
+            corr_mat,
+            text_auto="0.3f",
+            aspect="auto",
+            color_continuous_scale="RdBu",
+            zmin=-1, zmax=1,
+            title="Sample Correlation Matrix"
+        )
+        fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+        fig_corr.update_yaxes(tickmode="linear", dtick=1)
+        fig_corr.update_layout(
+            height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
+        )
+        st.plotly_chart(fig_corr, width="stretch")
+        st.dataframe(corr_mat)
+        st.space()
 
     with st.expander("Semantic similarity matrix"):
         if st.session_state.STATEMENTS is None:
@@ -803,8 +812,9 @@ def view_data_dialog():
                     semantic_similarity_mat,
                     text_auto="0.3f",
                     aspect="auto",
-                    color_continuous_scale='Blues',
-                    zmin=0, zmax=1
+                    color_continuous_scale="Blues",
+                    zmin=0, zmax=1,
+                    title="Semantic Similarity Matrix"
                 )
                 fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_semantic.update_yaxes(tickmode="linear", dtick=1)
@@ -815,6 +825,7 @@ def view_data_dialog():
                 st.dataframe(semantic_similarity_mat)
             else:
                 st.write(":hourglass_flowing_sand: Loading...")
+        st.space()
 
 
 @st.dialog(":material/add_chart: Fit a new factor model", width="large", dismissible=False)
@@ -879,7 +890,7 @@ def fit_model_dialog():
                         semantic_similarity_mat,
                         text_auto="0.3f",
                         aspect="auto",
-                        color_continuous_scale='Blues',
+                        color_continuous_scale="Blues",
                         zmin=0, zmax=1
                     )
                     fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -931,7 +942,7 @@ def fit_model_dialog():
                         prior_matrix,
                         text_auto="0",
                         aspect="auto",
-                        color_continuous_scale='Blues',
+                        color_continuous_scale="Blues",
                         zmin=0, zmax=1
                     )
                     fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -955,7 +966,7 @@ def fit_model_dialog():
                             prior_matrix,
                             text_auto="0.3f",
                             aspect="auto",
-                            color_continuous_scale='Blues',
+                            color_continuous_scale="Blues",
                             zmin=0, zmax=1
                         )
                         fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -979,7 +990,7 @@ def fit_model_dialog():
                 Please upload the CSV file. Please make sure that the order of the rows (and columns) match the order of 
                 the manifest variables shown below.
                 """)
-                st.write(manifest_statements)
+                st.dataframe(manifest_statements)
                 can_proceed = False
         elif prior == "None":
             prior_matrix = None
@@ -991,7 +1002,7 @@ def fit_model_dialog():
             st.rerun()
     if can_proceed:
         with col_2:
-            if st.button("Fit model", width="stretch"):
+            if st.button("Fit model", width="stretch", type="primary"):
                 any_failed = False
 
                 if model_name.strip() == "" or model_name is None:
@@ -1072,22 +1083,24 @@ def view_models_dialog():
 
         col_1, col_2, col_3, col_4, col_5 = st.columns(5)
         with col_1:
-            st.markdown("#### Number of manifest variables")
+            st.caption("Number of manifest variables")
             st.badge(str(len(fit_details["manifest_vars"])), color="green")
         with col_2:
-            st.markdown("#### Number of factors")
+            st.caption("Number of factors")
             st.badge(str(fit_details["number_of_factors"]), color="green")
         with col_3:
-            st.markdown("#### Rotation")
+            st.caption("Rotation")
             st.badge(str(fit_details["rotation"]).capitalize(), color="green")
         with col_4:
-            st.markdown("#### Prior type")
+            st.caption("Prior type")
             st.badge(str(fit_details["prior"]), color="green")
         with col_5:
-            st.markdown("#### V index")
+            st.caption("V-index")
             v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
             v = np.round(v, 5) if v is not None else None
             st.badge(str(v), color="green")
+
+        st.space()
 
         if fit_details["prior"] != "None":
             with st.expander("View prior matrix", expanded=False):
@@ -1098,14 +1111,14 @@ def view_models_dialog():
                     df_prior_matrix,
                     text_auto="0.3f",
                     aspect="auto",
-                    color_continuous_scale='Blues',
+                    color_continuous_scale="Blues",
                     zmin=0, zmax=1
                 )
                 fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_prior.update_yaxes(tickmode="linear", dtick=1)
                 fig_prior.update_layout(
                     height=min(900, max(50 * len(fit_details["manifest_vars"]), 300)),
-                    title="Prior matrix"
+                    title="Prior Matrix"
                 )
                 st.plotly_chart(fig_prior, width="stretch")
                 col_1, col_2, col_3 = st.columns(3)
@@ -1115,6 +1128,7 @@ def view_models_dialog():
                 st.space()
         else:
             st.warning("No prior matrix was used for this model.")
+        st.space()
 
         st.subheader("Model details")
         model_analysis = st.session_state.FACTOR_MODELS[model_name].analyze_model(model_name).reset_index(drop=True)
@@ -1130,7 +1144,7 @@ def view_models_dialog():
                 ["variable", "Statement", "mean"] +
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
-            ]
+                ]
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
             cmap="RdBu", axis=None, subset=[col for col in model_analysis.columns if col.startswith("factor_")],
@@ -1139,7 +1153,7 @@ def view_models_dialog():
             cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
         )
 
-        st.markdown("#### Means, correlations, communalities, and sampling adequacies")
+        st.caption("Means, correlations, communalities, and sampling adequacies")
         st.dataframe(model_analysis_styled)
         with st.expander("View interactive standardized loadings heatmap"):
             model_analysis = model_analysis.set_index("VARIABLE")
@@ -1151,7 +1165,7 @@ def view_models_dialog():
                 color_continuous_scale="RdBu",
                 color_continuous_midpoint=0,
                 labels=dict(x="Factors", y="Variables", color="Standardized loading"),
-                title="Factor loading matrix (standardized)"
+                title="Factor Loading Matrix (Standardized)"
             )
             fig_loadings.update_xaxes(side="bottom", tickmode="linear", dtick=1)
             fig_loadings.update_yaxes(tickmode="linear", dtick=1)
@@ -1159,6 +1173,8 @@ def view_models_dialog():
                 height=min(900, max(50 * len(fit_details["manifest_vars"]), 300))
             )
             st.plotly_chart(fig_loadings, width="stretch")
+
+        st.space()
 
         model_summary = st.session_state.FACTOR_MODELS[model_name].summarize_model(model_name)
         factor_scores = model_summary["scores"]
@@ -1169,17 +1185,19 @@ def view_models_dialog():
             df_factor_scores_long,
             x="Score",
             color="Factor",
-            title="Factor score distribution",
             marginal="box",
             barmode="overlay",
             opacity=0.8
         )
+        st.caption("Factor score distribution")
         st.plotly_chart(fig_scores_hist, width="stretch")
         df_data_with_factor_scores = pd.concat([st.session_state.DATA, df_factor_scores], axis=1)
         col_1, col_2, col_3 = st.columns(3)
         with col_2:
             st.download_button("Download factor scores as CSV file", df_data_with_factor_scores.to_csv(),
                                file_name="factor_scores.csv", width="stretch")
+
+        st.space()
 
         if st.session_state.FACTOR_MODELS[model_name].models[model_name].is_orthogonal_:
             factor_corr_mat = np.eye(st.session_state.FIT_DETAILS[model_name]["number_of_factors"])
@@ -1192,20 +1210,31 @@ def view_models_dialog():
             df_factor_corr_mat,
             text_auto="0.3f",
             aspect="auto",
-            color_continuous_scale='RdBu',
+            color_continuous_scale="RdBu",
             zmin=-1, zmax=1,
-            title="Factor correlations"
         )
         fig_factor_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
         fig_factor_corr.update_yaxes(tickmode="linear", dtick=1)
+        st.caption("Factor correlations")
         st.plotly_chart(fig_factor_corr, width="stretch")
         col_1, col_2, col_3 = st.columns(3)
         with col_2:
             st.download_button("Download factor correlations as CSV file", df_factor_corr_mat.to_csv(),
                                file_name="factor_correlations.csv", width="stretch")
 
+        st.space()
+
 
 # Header
+st.markdown("""
+    <style>
+        .st-key-load_use_model iframe, .st-key-get_embeddings iframe {
+            height: 0px;
+            background-color: rgba(0,0,0,0) !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 col_1, col_2, col_3 = st.columns([1, 3, 1])
 with col_2:
     st.image("./images/factor_flow_logo.png", width="stretch")
@@ -1213,48 +1242,73 @@ with col_2:
         with st.spinner("Loading NLP models...", show_time=True):
             while st.session_state.USE_MODEL_LOADED != 1:
                 time.sleep(0.1)
-st.subheader("FactorFlow: An LLM-enhanced Visual Workbench for Exploratory Factor Analysis")
+
+st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+    st.subheader("FactorFlow: An LLM-enhanced Visual Workbench for Exploratory Factor Analysis")
 st.markdown("Developed by [Justin Philip Tuazon](https://www.linkedin.com/in/justin-philip-tuazon/)")
 
 # Sidebar
 st.sidebar.title(":material/menu: Menu")
 
+with st.sidebar:
+    show_floating_top = st.checkbox("""Show "Back to Top" button""", value=True)
+
 with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True):
     st.subheader("Universal Sentence Encoder")
 
-    st.write("Embedder status:")
-    if st.session_state.USE_MODEL_LOADED == 1:
-        st.badge("Loaded", color="green")
-    else:
-        st.badge("Loading", color="yellow")
-
-    st.write("Embedder status:")
-    if isinstance(st.session_state.EMBEDDINGS, np.ndarray):
-        st.badge("Calculated", color="green")
-    else:
-        if st.session_state.STATEMENTS is None:
-            st.badge("No statements loaded", color="yellow")
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.caption("Embedder:")
+        if st.session_state.USE_MODEL_LOADED == 1:
+            st.badge("Loaded", color="green")
         else:
-            st.badge("Calculating", color="blue")
+            st.badge("Loading", color="yellow")
+    with col_2:
+        st.caption("Embeddings:")
+        if isinstance(st.session_state.EMBEDDINGS, np.ndarray):
+            st.badge("Calculated", color="green")
+        else:
+            if st.session_state.STATEMENTS is None:
+                st.badge("No statements loaded", color="yellow")
+            else:
+                st.badge("Calculating", color="blue")
 
-    st.subheader("Large Language Model")
-    st.session_state.CURRENT_LLM_MODEL_ID = st.selectbox(
-        "Model in use",
-        options=LLM_MODEL_IDS,
-        help="Different large language models may give different results. They also have different usage rate limits. "
-             "Note that regardless of the model, the maximum completion tokens is 4096."
-    )
+    st.subheader(f"Large Language Model")
+
     try:
         llms = st.session_state.LLM_CLIENT.models.list()
-        st.badge("Connected", color="green")
+        connected = True
     except Exception as e:
-        st.badge("Not connected", color="red")
-    llm_temp = st.slider("LLM temperature", min_value=0.0, max_value=2.0, step=0.05, value=0.3,
-                         help="Larger values encourage randomness and creativity, while "
-                              "smaller values encourage determinism and focus. For more consistent interpretations "
-                              "and formatting, choose a value not greater than 0.3.")
+        connected = False
 
-with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
+    if connected:
+        col_label, col_help = st.columns([0.9, 0.1])
+        with col_label:
+            st.caption("Model in use:")
+        with col_help:
+            st.markdown("", help="Different large language models may give different results. "
+                                 "They also have different usage rate limits. "
+                                 "Note that regardless of the model, the maximum completion tokens is 4096.")
+        st.session_state.CURRENT_LLM_MODEL_ID = st.selectbox(
+            "Model in use:",
+            options=LLM_MODEL_IDS,
+            label_visibility="collapsed"
+        )
+
+        col_label, col_help = st.columns([0.9, 0.1])
+        with col_label:
+            st.caption("LLM temperature:")
+        with col_help:
+            st.markdown("", help="Larger values encourage randomness and creativity, while "
+                                 "smaller values encourage determinism and focus. For more consistent interpretations "
+                                 "and formatting, choose a value not greater than 0.1.")
+        llm_temp = st.slider("LLM temperature:", min_value=0.0, max_value=0.5, step=0.05, value=0.1,
+                             label_visibility="collapsed")
+    else:
+        st.error("Failed to connect. Please refresh.")
+
+with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
     if st.session_state.DATA is None:
         st.warning("You have not uploaded a dataset yet.")
         col_1, col_2, col_3 = st.columns([1, 5, 1])
@@ -1262,6 +1316,28 @@ with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
             st.button("Upload", width="stretch", disabled=(st.session_state.USE_MODEL_LOADED != 1),
                       on_click=upload_data_dialog)
     else:
+        st.subheader("Dataset")
+        st.text_input("Dataset", value=str(st.session_state.DATA_NAME),
+                      label_visibility="collapsed", disabled=True)
+
+        st.subheader("Statements")
+        st.text_input("Statements name", value=str(st.session_state.STATEMENTS_NAME),
+                      label_visibility="collapsed", disabled=True)
+
+        col_1, col_2 = st.columns(2)
+        with col_1:
+            st.caption("Variables")
+            st.write(str(st.session_state.DATA.shape[1]))
+        with col_2:
+            st.caption("Observations")
+            st.write(f"{st.session_state.DATA.shape[0]:,}")
+
+        col_1, col_2 = st.columns(2)
+        with col_1:
+            st.button("Stats", width="stretch", type="primary", on_click=view_data_dialog)
+        with col_2:
+            st.button("Tags", width="stretch", on_click=view_tags_dialog)
+
         col_1, col_2 = st.columns(2)
         with col_1:
             st.button("Change", width="stretch", on_click=upload_data_dialog)
@@ -1280,29 +1356,10 @@ with st.sidebar.expander("Dataset", icon=":material/dataset:", expanded=True):
                 clear_embeddings()
                 st.rerun()
 
-    if st.session_state.DATA is not None:
-        st.write("Dataset name:")
-        st.badge(str(st.session_state.DATA_NAME), color="green")
-        st.write("Number of observations:")
-        st.badge(str(st.session_state.DATA.shape[0]), color="green")
-        st.write("Number of manifest variables:")
-        st.badge(str(st.session_state.DATA.shape[1]), color="green")
-        st.write("With statements:")
-        if st.session_state.STATEMENTS is None:
-            st.badge("No", color="red")
-        else:
-            st.badge("Yes", color="green")
-
-        col_1, col_2 = st.columns(2)
-        with col_1:
-            st.button("Tags", width="stretch", on_click=view_tags_dialog)
-        with col_2:
-            st.button("Basic stats", width="stretch", on_click=view_data_dialog)
-
 with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=True):
     col_1, col_2 = st.columns(2)
     with col_1:
-        st.button("Add", width="stretch", on_click=fit_model_dialog,
+        st.button("Add", width="stretch", on_click=fit_model_dialog, type="primary",
                   disabled=(st.session_state.USE_MODEL_LOADED != 1) or (st.session_state.DATA is None))
     with col_2:
         st.button("View", width="stretch", on_click=view_models_dialog,
@@ -1313,8 +1370,19 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
         st.warning("You have not estimated any factor model yet.")
     elif len(st.session_state.FACTOR_MODELS) > 0:
         model_names = sorted(list(st.session_state.FACTOR_MODELS.keys()))
-        for model_name in model_names:
-            st.badge(model_name, color="green")
+        rotations = [st.session_state.FIT_DETAILS[model_name]["rotation"] for model_name in model_names]
+        fact_counts = [st.session_state.FIT_DETAILS[model_name]["number_of_factors"] for model_name in model_names]
+        var_counts = [len(st.session_state.FIT_DETAILS[model_name]["manifest_vars"]) for model_name in model_names]
+
+        for i in range(len(model_names)):
+            model_name = model_names[i]
+            rotation = rotations[i]
+            fact_count = fact_counts[i]
+            var_count = var_counts[i]
+            description = f"{fact_count}-factor {var_count}-variable {rotation if rotation is not None else ''}"
+
+            st.caption(model_name)
+            st.write(description)
 
 # Body
 tab_overview, tab_diagnostics, tab_dashboard = st.tabs([
@@ -1349,13 +1417,22 @@ with tab_overview:
                 animation_group="Group",
                 trendline="lowess"
             )
-            fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 2000
-            fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]['transition']['duration'] = 1000
+            fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 2000
+            fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 1000
             fig_sample_v_plot.update_layout(
                 xaxis_title="Prior Similarity",
                 yaxis_title="Semantic Similarity",
                 margin=dict(l=50, r=50, t=50, b=50),
                 title="Factor Model Interpretability Plot"
+            )
+            fig_sample_v_plot.update_layout(
+                yaxis=dict(
+                    visible=True,
+                    showticklabels=True,
+                    showline=False,
+                    showgrid=False,
+                    zeroline=False
+                )
             )
             st.plotly_chart(fig_sample_v_plot, width="stretch")
         st.write("Feel free to interact with the sample visualization above to see how the plot changes depending on "
@@ -1363,8 +1440,44 @@ with tab_overview:
 
     with st.expander("Getting started", True, icon=":material/rocket_launch:"):
         st.markdown("""
-        In general, the user can perform the following steps in order to use this tool:
-        1. Upload your dataset in the *Dataset* section of the *Menu*. You can upload two kinds of files: 
+        In general, you can follow these steps to use FactorFlow.
+        """)
+
+        getting_started_step = card_selector(
+            [
+                dict(
+                    icon=":material/upload:",
+                    title="1. Upload",
+                    description="Import your files.",
+                ),
+                dict(
+                    icon=":material/feature_search:",
+                    title="2. Explore",
+                    description="Do some basic stats and diagnostics.",
+                ),
+                dict(
+                    icon=":material/model_training:",
+                    title="3. Fit",
+                    description="Estimate factor models.",
+                ),
+                dict(
+                    icon=":material/stacked_bar_chart:",
+                    title="4. Analyze",
+                    description="Examine your models.",
+                ),
+                dict(
+                    icon=":material/export_notes:",
+                    title="5. Export",
+                    description="Download the results.",
+                )
+            ],
+            default=0,
+            key="how_to_guide"
+        )
+
+        if getting_started_step == 0:
+            st.markdown("""
+            Upload your dataset in the *Dataset* section of the *Menu*. You can upload three kinds of files: 
             * **The main dataset (CSV file)**. This is the tabular dataset on which the factor models will be fit. Each 
             column must represent a feature and each observation must represent an observation. All data values must be 
             numeric and there must be no missing values. This is **required** to fit a model. The CSV file or raw 
@@ -1378,156 +1491,187 @@ with tab_overview:
             rotation.
             * **The tags associated with each variable**. You can add tags to each variable or statement to help 
             visualize interpretability. To do so, click *Tags* under *Dataset*. This is optional.
-            * **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
+            
+            **On Statements**. Ideally, statements should not be too long but they should also be "complete" (e.g., 
+            a full sentence). However, it is also possible to have just "regular" one or two-word variable names such 
+            as "height" and so on. In such cases though, semantic similarities may not be as meaningful.
+            
+            **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
             variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
             more tags, and tags do not have to be unique across variables.
-        """)
-
-        st.markdown("""
-        2. Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
-        communalities or you might want to determine the optimal number of factors. You can also go to *Basic stats* 
-        under *Dataset* in the menu to see some summary statistics.
-        """)
-
-        st.markdown("""
-        3. Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
-        dataset. You can add or remove as many factor models as you need to. You can click the model name in order to 
-        see more details about how the model was fit (e.g., number of factors, rotation method, fitting algorithm).
+            """)
+        elif getting_started_step == 1:
+            st.markdown("""
+            Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
+            communalities or you might want to determine the optimal number of factors. There is also an interactive 
+            visualizer available if you want to manually explore the raw dataset yourself. Otherwise, you can go to 
+            *Basic stats* under *Dataset* in the menu to see some readily available summary statistics.
+            """)
+        elif getting_started_step == 2:
+            st.markdown("""
+            Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
+            dataset. You can add or remove as many factor models as you need to. You can click the model name in order 
+            to see more details about how the model was fit (e.g., number of factors, rotation method, fitting 
+            algorithm).
             * When uploading a CSV file for a custom prior matrix, make sure that the matrix is symmetric and that 
             the number of rows (or columns) matches the number of manifest variables (i.e., columns in the main 
             dataset). Also, all entries must be either a number or left blank.
             * Note that the tool standardizes (i.e., subtracts the mean and divides by standard deviation) each manifest 
             variable prior to fitting. This means that the loadings provided are standardized loadings (i.e., 
             **correlations** with the factors).
-        """)
-
-        st.markdown("""
-        4. Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
-        choose to display only one model to focus on a single factor model but you can also display 2 factor 
-        models at the same time for comparisons.
-            * If you want to view one factor model at a time in detail instead, you can go to *View* under 
-            *Factor Models*.
-        
-        Note that you can **download** most datasets, tables, and visualizations shown in this tool. **A video 
-        walkthrough of the tool is in the works**.
-        """)
-
-        st.markdown("""
-        Sample datasets are available 
-        [here](https://drive.google.com/drive/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X?usp=sharing). 
-        Although classical rotations and traditional visualizations are made available, this tool was made partially 
-        to make pairwise target rotation accessible. As such, you may want to read the 
-        [paper](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
-        """)
+            """)
+        elif getting_started_step == 3:
+            st.markdown("""
+            Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
+            choose to display only one model to focus on a single factor model but you can also display 2 factor 
+            models at the same time for comparisons. If you want to view one factor model at a time in detail instead, 
+            you can go to *View* under *Factor Models*.
+            """)
+        elif getting_started_step == 4:
+            st.markdown("""
+            You can **download** most tables, figures, and visualizations in this tool:
+            * For tables, hovering on them triggers a download button to show at the top right of the table.
+            * For most figures, there are dedicated download buttons that you can click.
+            * For most visualizations, hovering on them triggers the control panel to show at the top right of the 
+            chart, where you can find the download button. For some others, you can right-click on the chart and 
+            click "Save image as..." or "Copy image".
+            """)
 
     with st.expander("Notes", True, icon=":material/pinboard:"):
         st.markdown("""
-        * Right now, the tool does not support a correlation matrix as the main dataset and does not support
-        polychoric correlations. These will be added in the future.
-        * The Universal Sentence Encoder is the only embedding model supported right now.
-        * FactorFlow is made available under the GNU General Public License v3.0.
-        * The tool can be found [here](https://factorflow-efa.streamlit.app/).
-        * Sample datasets can be found 
-        [here](https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
-        * The code repository for this tool can be found [here](https://github.com/jptuazon/factorflow).
-        """)
+        ###### Examples 
+        * Sample datasets and files are available 
+        [here](https://drive.google.com/drive/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X?usp=sharing).
+        * A video walkthrough of the tool is in the works.
+        * Although classical rotations and traditional visualizations are made available, this tool was made partially
+        to make pairwise target rotation accessible. As such, you may want to read the 
+        [paper](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
 
-    with st.expander("Dependencies", False, icon=":material/link_2:"):
-        st.write("This tool uses several third-party Python packages or dependences, which are listed below.")
-        with open("./requirements.txt", "r") as f:
-            for line in f:
-                st.markdown(f"* {line}")
+        ###### Limitations and Future Releases
+        * The tool currently does not support a correlation matrix as the main dataset and polychoric correlations. 
+        These will be added in the future.
+        * The Universal Sentence Encoder is the only embedding model supported right now.
+        
+        ###### Additional Information
+        * You can switch between Dark and Light modes by clicking the Settings icon at the top right of the page.
+        * The code repository for this tool can be found [here](https://github.com/jptuazon/factorflow).
+        * FactorFlow is made available under the GNU General Public License v3.0.
+        """)
 
 with tab_diagnostics:
     if st.session_state.DATA is None:
         st.warning("Upload a dataset first.")
     else:
-        manifest_vars = st.multiselect(
-            "Manifest variables",
-            options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
-            help="Only these manifest variables will be considered in the diagnostics of the factor model."
+        diagnostics_sub_tab = st.radio(
+            "Choose what to examnie",
+            ["Factor model goodness-of-fit", "Raw data explorer"],
+            key="diag_sub_tab",
+            horizontal=True
         )
-        number_of_factors = st.slider(label="Number of factors", step=1,
-                                      value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
-                                      help="The number of factors cannot exceed the number of manifest "
-                                           "variables.", width="stretch")
+        st.space("small")
 
-        st.space()
-
-        if len(manifest_vars) < 2:
-            st.warning("Select at least two manifest variables.")
-        elif len(manifest_vars) <= number_of_factors:
-            st.warning("The number of factors must be less than the number of manifest variables.")
-        else:
-            data_subset = st.session_state.DATA[manifest_vars]
-            ifa = InterpretableFA(data_subset)
-            ifa.fit_factor_model("model", number_of_factors, None)
-
-            model_analysis = ifa.analyze_model("model").reset_index(drop=True)
-            means = pd.DataFrame({
-                "variable": [manifest_var for manifest_var in manifest_vars],
-                "mean": [st.session_state.DATA[manifest_var].mean() for manifest_var in manifest_vars]
-            })
-            model_analysis = pd.merge(left=model_analysis, right=means, on="variable", how="inner")
-            if st.session_state.STATEMENTS_DF is not None:
-                model_analysis = pd.merge(left=model_analysis, right=st.session_state.STATEMENTS_DF,
-                                          left_on="variable", right_on="Variable", how="inner")
-                model_analysis = model_analysis[
-                    ["variable", "Statement", "mean"] +
-                    [col for col in model_analysis.columns if col.startswith("factor_")] +
-                    ["communality", "kmo_msa"]
-                ]
-            model_analysis.columns = [col.upper() for col in model_analysis.columns]
-            model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
-            model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
-            model_analysis_styled = model_analysis_styled.style.background_gradient(
-                cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+        if diagnostics_sub_tab == "Factor model goodness-of-fit":
+            manifest_vars = st.multiselect(
+                "Manifest variables",
+                options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
+                help="Only these manifest variables will be considered in the diagnostics of the factor model."
             )
+            number_of_factors = st.slider(label="Number of factors", step=1,
+                                          value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
+                                          help="The number of factors cannot exceed the number of manifest "
+                                               "variables.", width="stretch")
 
-            with st.expander("Communalities and adequacies"):
-                st.dataframe(model_analysis_styled)
+            st.space()
 
-            with st.expander("Scree plot"):
-                loadings_only = model_analysis[[col for col in model_analysis.columns
-                                                if col.startswith("FACTOR_")]].copy()
-                squared_loadings = loadings_only ** 2
-                eigenvalues = squared_loadings.sum().sort_values(ascending=False)
-                df_eigenvalues = pd.DataFrame({
-                    "Factor": eigenvalues.index,
-                    "Sum of Squared Loadings": eigenvalues
-                }).reset_index(drop=True)
-                fig_scree = px.line(
-                    df_eigenvalues,
-                    x="Factor",
-                    y="Sum of Squared Loadings",
-                    markers=True,
-                    title="Eigenvalue per factor"
-                )
-                fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion")
-                st.markdown(f"""
-                The total sum of eigenvalues is 
-                :blue-badge[{np.round(df_eigenvalues["Sum of Squared Loadings"].sum(), 4)}] out 
-                of the theoretical maximum of :blue-badge[{len(manifest_vars)}].
-                """)
-                st.plotly_chart(fig_scree, width="stretch")
-                st.space()
+            if len(manifest_vars) < 2:
+                st.warning("Select at least two manifest variables.")
+            elif len(manifest_vars) <= number_of_factors:
+                st.warning("The number of factors must be less than the number of manifest variables.")
+            else:
+                data_subset = st.session_state.DATA[manifest_vars]
+                ifa = InterpretableFA(data_subset)
+                ifa.fit_factor_model("model", number_of_factors, None)
 
-            with st.expander("Correlations"):
-                corr_mat = data_subset.corr()
-                fig_corr = px.imshow(
-                    corr_mat,
-                    text_auto="0.2f",
-                    aspect="auto",
-                    color_continuous_scale='RdBu',
-                    zmin=-1, zmax=1,
-                    title="Subsetted correlation matrix"
+                model_analysis = ifa.analyze_model("model").reset_index(drop=True)
+                means = pd.DataFrame({
+                    "variable": [manifest_var for manifest_var in manifest_vars],
+                    "mean": [st.session_state.DATA[manifest_var].mean() for manifest_var in manifest_vars]
+                })
+                model_analysis = pd.merge(left=model_analysis, right=means, on="variable", how="inner")
+                if st.session_state.STATEMENTS_DF is not None:
+                    model_analysis = pd.merge(left=model_analysis, right=st.session_state.STATEMENTS_DF,
+                                              left_on="variable", right_on="Variable", how="inner")
+                    model_analysis = model_analysis[
+                        ["variable", "Statement", "mean"] +
+                        [col for col in model_analysis.columns if col.startswith("factor_")] +
+                        ["communality", "kmo_msa"]
+                        ]
+                model_analysis.columns = [col.upper() for col in model_analysis.columns]
+                model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
+                model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
+                model_analysis_styled = model_analysis_styled.style.background_gradient(
+                    cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
                 )
-                fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-                fig_corr.update_yaxes(tickmode="linear", dtick=1)
-                fig_corr.update_layout(
-                    height=min(650, max(25 * st.session_state.DATA.shape[1], 300))
-                )
-                st.plotly_chart(fig_corr, width="stretch")
+
+                with st.expander("Communalities and adequacies"):
+                    st.dataframe(model_analysis_styled)
+
+                with st.expander("Scree plot"):
+                    loadings_only = model_analysis[[col for col in model_analysis.columns
+                                                    if col.startswith("FACTOR_")]].copy()
+                    squared_loadings = loadings_only ** 2
+                    eigenvalues = squared_loadings.sum().sort_values(ascending=False)
+                    df_eigenvalues = pd.DataFrame({
+                        "Factor": eigenvalues.index,
+                        "Sum of Squared Loadings": eigenvalues
+                    }).reset_index(drop=True)
+                    fig_scree = px.line(
+                        df_eigenvalues,
+                        x="Factor",
+                        y="Sum of Squared Loadings",
+                        markers=True,
+                        title="Eigenvalue per factor"
+                    )
+                    fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion")
+                    st.markdown(f"""
+                    The total sum of eigenvalues is 
+                    :blue-badge[{np.round(df_eigenvalues["Sum of Squared Loadings"].sum(), 4)}] out 
+                    of the theoretical maximum of :blue-badge[{len(manifest_vars)}].
+                    """)
+                    st.plotly_chart(fig_scree, width="stretch")
+                    st.space()
+
+                with st.expander("Correlations"):
+                    corr_mat = data_subset.corr()
+                    fig_corr = px.imshow(
+                        corr_mat,
+                        text_auto="0.2f",
+                        aspect="auto",
+                        color_continuous_scale="RdBu",
+                        zmin=-1, zmax=1,
+                        title="Subsetted correlation matrix"
+                    )
+                    fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                    fig_corr.update_yaxes(tickmode="linear", dtick=1)
+                    fig_corr.update_layout(
+                        height=min(650, max(25 * st.session_state.DATA.shape[1], 300))
+                    )
+                    st.plotly_chart(fig_corr, width="stretch")
+        elif diagnostics_sub_tab == "Raw data explorer":
+            st.button("View quick summary", width="stretch", on_click=view_data_dialog)
+            st.space("xxsmall")
+            if st.session_state.STATEMENTS is not None and st.session_state.STATEMENTS_DF is not None:
+                df_explorer = st.session_state.DATA.copy()
+                df_explorer.columns = [
+                    f"X{idx + 1} - " + str(st.session_state.STATEMENTS_DF[
+                                               st.session_state.STATEMENTS_DF["Variable"] == col
+                                               ]["Statement"].item())
+                    for idx, col in enumerate(df_explorer.columns)
+                ]
+            else:
+                df_explorer = st.session_state.DATA
+            pyg_app = StreamlitRenderer(df_explorer)
+            pyg_app.explorer()
 
 with tab_dashboard:
     st.badge(":material/info: If your screen is not wide enough for the horizontal layout, "
@@ -1558,11 +1702,12 @@ with tab_dashboard:
             ]
 
             # Title
-            cols = st.columns(len(selected_models), border=True, vertical_alignment="center")
+            cols = st.columns(len(selected_models), vertical_alignment="center")
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
-                    st.subheader(model_name)
+                    st.header(model_name)
+                    st.space()
 
             # Fit details
             cols = st.columns(len(selected_models), border=True)
@@ -1570,27 +1715,28 @@ with tab_dashboard:
                 with cols[i]:
                     model_name = selected_models[i]
 
-                    st.badge("Fit details", color="blue")
+                    st.subheader(":material/lists: Fit details")
+                    st.space()
                     fit_details = st.session_state.FIT_DETAILS[model_name]
 
-                    col_1, col_2, col_3, col_4, col_5 = st.columns(5)
-                    with col_1:
-                        st.write("Variables")
-                        st.badge(str(len(fit_details["manifest_vars"])), color="green")
-                    with col_2:
-                        st.write("Factors")
-                        st.badge(str(fit_details["number_of_factors"]), color="green")
-                    with col_3:
-                        st.write("Rotation")
-                        st.badge(str(fit_details["rotation"]).capitalize(), color="green")
+                    st.caption("QUANTITATIVE")
+
+                    col_1, col_2, col_3 = st.columns(3)
+                    col_1.metric("Variables", str(len(fit_details["manifest_vars"])))
+                    col_2.metric("Factors", str(fit_details["number_of_factors"]))
+                    v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
+                    v = np.round(v, 5) if v is not None else None
+                    col_3.metric("V-Index", str(v))
+
+                    col_4, col_5, col_6 = st.columns(3)
                     with col_4:
-                        st.write("Prior type")
-                        st.badge(str(fit_details["prior"]), color="green")
+                        st.caption("ROTATION")
+                        st.write(str(fit_details["rotation"]).capitalize())
                     with col_5:
-                        st.write("V index")
-                        v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
-                        v = np.round(v, 5) if v is not None else None
-                        st.badge(str(v), color="green")
+                        st.caption("PRIOR TYPE")
+                        st.write(str(fit_details["prior"]))
+
+                    st.space()
 
             # Communalities and adequacies
             cols = st.columns(len(selected_models), border=True)
@@ -1599,7 +1745,9 @@ with tab_dashboard:
                     model_name = selected_models[i]
                     model_analysis = model_analyses[i]
 
-                    st.badge("Communalities and adequacies", color="blue")
+                    st.subheader(":material/monitoring: Communalities and adequacies")
+                    st.space()
+
                     comm_and_adeq = model_analysis[["variable", "communality", "kmo_msa"]]
                     if st.session_state.STATEMENTS_DF is not None:
                         comm_and_adeq = pd.merge(left=comm_and_adeq, right=st.session_state.STATEMENTS_DF,
@@ -1613,6 +1761,8 @@ with tab_dashboard:
                     )
                     st.dataframe(comm_and_adeq_styled, hide_index=True, key=f"{model_name}_comm_and_adeq")
 
+                    st.space()
+
             # Interpretability plot
             cols = st.columns(len(selected_models), border=True)
             for i in range(len(selected_models)):
@@ -1620,7 +1770,9 @@ with tab_dashboard:
                     model_name = selected_models[i]
                     multiset = multisets[i]
 
-                    st.badge("Interpretability plot", color="blue")
+                    st.subheader(":material/psychology: Interpretability plot")
+                    st.space()
+
                     similarity_type = ("Semantic Similarity"
                                        if st.session_state.FIT_DETAILS[model_name]["prior"] == "Semantics"
                                        else "Prior Similarity")
@@ -1661,10 +1813,20 @@ with tab_dashboard:
                             )
                             lowess_failed = True
 
+                        fig_v_plot.update_layout(
+                            yaxis=dict(
+                                visible=True,
+                                showticklabels=True,
+                                showline=False,
+                                showgrid=False,
+                                zeroline=False
+                            )
+                        )
                         st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
                         if lowess_failed:
                             st.warning("Lowess failed to fit. Defaulted to OLS.")
 
+                    st.space()
             # Factor breakdown
             cols = st.columns(len(selected_models), border=True)
             for i in range(len(selected_models)):
@@ -1674,18 +1836,32 @@ with tab_dashboard:
                     loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
                                                                    if col.startswith("factor_")]]
 
-                    st.badge("Factor breakdown", color="blue")
+                    st.subheader(":material/donut_small: Factor breakdown")
+                    st.space()
 
                     df_tags_breakdown = compute_tags_breakdown(loadings_only)
                     fig_tags_breakdown = px.bar(
                         df_tags_breakdown,
                         x="Factor",
                         y="Sum of Squared Loadings",
+                        text="Sum of Squared Loadings",
                         color="Tag",
                         barmode="stack",
-                        title="Sum of squared loadings per factor"
+                        title="Sum of Squared Loadings per Factor"
+                    )
+                    fig_tags_breakdown.update_traces(textposition="outside", texttemplate="%{text:.3f}")
+                    fig_tags_breakdown.update_layout(
+                        yaxis=dict(
+                            visible=True,
+                            showticklabels=False,
+                            showline=False,
+                            showgrid=False,
+                            zeroline=False
+                        )
                     )
                     st.plotly_chart(fig_tags_breakdown, width="stretch", key=f"{model_name}_tags_breakdown")
+
+                    st.space()
 
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
@@ -1697,7 +1873,9 @@ with tab_dashboard:
                     loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
                                                                    if col.startswith("factor_")]]
 
-                    st.badge("Factor loadings", color="blue")
+                    st.subheader(":material/bar_chart_4_bars: Factor loadings")
+                    st.space()
+
                     thresh = st.slider(
                         "Absolute threshold", min_value=0.0, max_value=1.0, value=0.35,
                         help="""
@@ -1740,7 +1918,7 @@ with tab_dashboard:
                         color_continuous_midpoint=0 if show_raw else 0.5,
                         labels=dict(x="Factors", y="Variables",
                                     color="Loading" if show_raw else "Included"),
-                        title="Factor loading matrix"
+                        title="Factor Loading Matrix"
                     )
                     fig_loadings.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                     fig_loadings.update_yaxes(tickmode="linear", dtick=1)
@@ -1770,7 +1948,7 @@ with tab_dashboard:
                                 col for col in df_loadings_download.columns
                                 if col.startswith("FACTOR_")
                             ]
-                        ]
+                            ]
                     st.download_button("Download as CSV file",
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
@@ -1796,13 +1974,15 @@ with tab_dashboard:
                                     else:
                                         st.write(variable)
 
+                    st.space()
+
             # Factor cross-loadings
             cols = st.columns(len(selected_models), border=True)
             for i in range(len(selected_models)):
                 with cols[i]:
                     sub_col_1, sub_col_2 = st.columns([9, 1])
                     with sub_col_1:
-                        st.badge("Factor cross-loadings", color="blue")
+                        st.subheader(":material/network_node: Factor cross-loadings")
                     with sub_col_2:
                         with st.popover("", type="tertiary", icon=":material/help:",
                                         key=f"{model_name}_popover", width="stretch"):
@@ -1813,7 +1993,11 @@ with tab_dashboard:
                             * Click on a node or an edge to move the graph.
                             * Click on a blank space to pan the canvas. Scroll to zoom in or out.
                             * Right-click on the canvas to save the graph as an image.
+                            
+                            If you cannot see the network graph, try zooming out or try resetting the graph by 
+                            unselecting then selecting the model again.
                             """)
+                    st.space()
 
                     st.markdown("""
                     Two nodes are connected if and only if they load high on a common factor, as defined by the
@@ -1879,7 +2063,7 @@ with tab_dashboard:
                         if st.session_state is not None:
                             title = st.session_state.STATEMENTS_DF[
                                 st.session_state.STATEMENTS_DF["Variable"] == mv
-                            ]["Statement"].item()
+                                ]["Statement"].item()
                         else:
                             title = mv
                         nodes.append(
@@ -1936,6 +2120,8 @@ with tab_dashboard:
                     else:
                         st.warning("Select at least one manifest variable.")
 
+                    st.space()
+
             # Interpretation
             cols = st.columns(len(selected_models), border=True)
             for i in range(len(selected_models)):
@@ -1954,7 +2140,9 @@ with tab_dashboard:
                         float(threshs[i])
                     ).astype(int)
 
-                    st.badge("Interpretation", color="blue")
+                    st.subheader(":material/cognition_2: Interpretation")
+                    st.space()
+
                     if st.session_state.STATEMENTS is None:
                         st.warning("The associated statements for the variables were not provided.")
                     else:
@@ -1980,3 +2168,9 @@ with tab_dashboard:
                             if st.session_state.INTERPRETATIONS[model_name][0] != "Error":
                                 st.write(f"Generated by {st.session_state.INTERPRETATIONS[model_name][0]}")
                             st.write(st.session_state.INTERPRETATIONS[model_name][1])
+
+                    st.space()
+
+if show_floating_top:
+    if floating_button(":material/keyboard_double_arrow_up: Top"):
+        scroll_to_element(f"app_title_{st.session_state.SCROLL_COUNTER}")
