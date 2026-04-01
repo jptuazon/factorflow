@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.1.3
+# FactorFlow V2.1.5
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -185,6 +185,7 @@ def fit_factor_model():
             st.session_state.FACTOR_MODELS[model_name] = InterpretableFA(
                 st.session_state.DATA[manifest_vars]
             )
+
             st.session_state.FACTOR_MODELS[model_name].fit_factor_model(
                 model_name,
                 number_of_factors,
@@ -402,7 +403,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.1.3
+        * Version Number: 2.1.5
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -526,7 +527,7 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
         "processed_matrix": None
     }
 
-    prior_matrix = prior_matrix.copy()
+    prior_matrix = prior_matrix.copy() if prior_matrix is not None else None
 
     if prior_matrix is None:
         if rotation.lower == "priorimax":
@@ -560,12 +561,12 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
                 except ValueError:
                     result["pass"] = False
                     result["message"] = "Prior matrix: All entries must be either a number or blank."
-                    break
+                    return result
 
                 if val < 0 or val > 1:
                     result["pass"] = False
                     result["message"] = "Prior matrix: All entries must be between 0 and 1 (inclusive)."
-                    break
+                    return result
 
             if val is None:
                 if prior_matrix[col, row] is None or prior_matrix[col, row] == "":
@@ -574,17 +575,17 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
                 else:
                     result["pass"] = False
                     result["message"] = "The prior matrix must be symmetric."
-                    break
+                    return result
             else:
                 if prior_matrix[col, row] is None or prior_matrix[col, row] == "":
                     result["pass"] = False
                     result["message"] = "The prior matrix must be symmetric."
-                    break
+                    return result
                 else:
                     if not np.isclose(val, prior_matrix[col, row]):
                         result["pass"] = False
                         result["message"] = "The prior matrix must be symmetric."
-                        break
+                        return result
                     else:
                         prior_matrix[col, row] = val
 
