@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.0.1
+# FactorFlow V2.0.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -402,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.0.1
+        * Version Number: 2.0.2
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1838,7 +1838,8 @@ with tab_dashboard:
 
                     st.subheader(":material/donut_small: Factor breakdown")
                     st.space()
-                    show_breakdown_values = st.checkbox("Show value per tag?", value=True)
+                    show_breakdown_values = st.checkbox("Show value per tag?", value=True,
+                                                        key=f"{model_name}_show_value_per_tag")
                     df_tags_breakdown = compute_tags_breakdown(loadings_only)
                     fig_tags_breakdown = px.bar(
                         df_tags_breakdown,
