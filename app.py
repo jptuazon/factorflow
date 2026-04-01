@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.1.1
+# FactorFlow V2.1.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -402,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.1.1
+        * Version Number: 2.1.2
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -524,6 +524,8 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
         "pass": True,
         "message": "Passed."
     }
+
+    prior_matrix = prior_matrix.copy()
 
     if prior_matrix is None:
         if rotation.lower == "priorimax":
