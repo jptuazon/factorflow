@@ -1,11 +1,11 @@
 setuptools<82.0.0
-numpy<2.2.0
+numpy
 pandas
 scikit-learn<1.8.0
 factor-analyzer
 tensorflow
 tensorflow-hub
-interpretablefa>=6.0.3
+interpretablefa>=6.0.5
 scipy
 statsmodels
 matplotlib
