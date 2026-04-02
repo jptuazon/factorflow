@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.1.5
+# FactorFlow V2.2.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -403,7 +403,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.1.5
+        * Version Number: 2.2.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -1635,10 +1635,26 @@ with tab_diagnostics:
                         df_eigenvalues,
                         x="Factor",
                         y="Sum of Squared Loadings",
+                        text="Sum of Squared Loadings",
                         markers=True,
                         title="Eigenvalue per factor"
                     )
-                    fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion")
+                    fig_scree.update_layout(
+                        yaxis=dict(
+                            visible=True,
+                            showticklabels=True,
+                            showline=False,
+                            showgrid=False,
+                            zeroline=False
+                        )
+                    )
+                    fig_scree.update_traces(
+                        mode="lines+markers+text",
+                        texttemplate="%{text:.3f}",
+                        textposition="top center"
+                    )
+                    fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion",
+                                        annotation_position="top left")
                     st.markdown(f"""
                     The total sum of eigenvalues is 
                     :blue-badge[{np.round(df_eigenvalues["Sum of Squared Loadings"].sum(), 4)}] out 
@@ -1904,7 +1920,8 @@ with tab_dashboard:
                         help="""
                         This discretizes the loadings such that a manifest variable is "included" in the 
                         factor (and its interpretation) if and only if the absolute value of the loading 
-                        is at least the threshold.
+                        is at least the threshold. If the value is 1, then the variable is "included". Otherwise, 
+                        it is not.
                         """, key=f"{model_name}_thresh_slider"
                     )
                     threshs.append(thresh)
@@ -1937,7 +1954,7 @@ with tab_dashboard:
                         df_loadings,
                         text_auto="0.3f" if show_raw else "0",
                         aspect="auto",
-                        color_continuous_scale="RdBu" if show_raw else "Purples",
+                        color_continuous_scale="RdBu" if show_raw else [(0, "#FFFFFF"), (1, "#0356A6")],
                         color_continuous_midpoint=0 if show_raw else 0.5,
                         labels=dict(x="Factors", y="Variables",
                                     color="Loading" if show_raw else "Included"),
@@ -1948,6 +1965,10 @@ with tab_dashboard:
                     fig_loadings.update_layout(
                         height=min(900, max(50 * len(st.session_state.FIT_DETAILS[model_name]["manifest_vars"]), 300))
                     )
+                    if not show_raw:
+                        fig_loadings.update_coloraxes(showscale=True,
+                                                      colorbar_tickvals=[0, 1],
+                                                      colorbar_ticktext=["No", "Yes"])
                     st.plotly_chart(fig_loadings, width="stretch", key=f"{model_name}_loadings")
 
                     df_loadings_download = df_loadings.reset_index(
@@ -2033,7 +2054,7 @@ with tab_dashboard:
                             options=["Manifest Variables", "Latent Factors"],
                             key=f"{model_name}_compare_across"
                         )
-                        x_var = "variable" if compare_across == "Manifest Variables" else "factor"
+                        x_var = "variable" if compare_across == "Latent Factors" else "factor"
                         color_var = "variable" if x_var == "factor" else "factor"
                     with col_2:
                         compare_layout = st.selectbox(
