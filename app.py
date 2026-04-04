@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.2.0
+# FactorFlow V2.3.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -29,7 +29,6 @@ from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
 from streamlit_extras.floating_button import floating_button
 from streamlit_extras.scroll_to_element import scroll_to_element
-from pygwalker.api.streamlit import StreamlitRenderer
 
 
 # Universal sentence encoder set up
@@ -213,7 +212,7 @@ def fit_factor_model():
     st.space()
     col_1, col_2 = st.columns([15, 3])
     with col_2:
-        if st.button("Finish", width="stretch"):
+        if st.button("Finish", width="stretch", key="finish_fit_btn"):
             st.rerun()
 
 
@@ -403,7 +402,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "About": """
-        * Version Number: 2.2.0
+        * Version Number: 2.3.0
         * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
         [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
         * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
@@ -620,7 +619,8 @@ def upload_data_dialog():
 
     if can_proceed:
         if df_data is not None:
-            use_statements = st.checkbox("Upload statements or questions associated with the manifest variables?")
+            use_statements = st.checkbox("Upload statements or questions associated with the manifest variables?",
+                                         key="upload_questions_checkbox")
             if use_statements:
                 txt_data = st.file_uploader("Choose a TXT file for the statements:", type="txt")
                 if txt_data is not None:
@@ -643,7 +643,7 @@ def upload_data_dialog():
     if can_proceed and (df_data is not None):
         col_1, col_2 = st.columns([15, 3])
         with col_2:
-            if st.button("Confirm", width="stretch"):
+            if st.button("Confirm", width="stretch", key="confirm_data_btn"):
                 st.session_state.DATA = df_data
                 st.session_state.DATA_NAME = data_file_name
                 st.session_state.STATEMENTS = statements
@@ -674,14 +674,14 @@ def view_tags_dialog():
     df_tags = pd.merge(left=df_tags, right=st.session_state.STATEMENTS_DF, on="Variable", how="left")
     df_tags = df_tags[["Variable", "Statement", "Tags"]]
     df_tags.sort_values(by=["Statement", "Variable"], ascending=[True, True], inplace=True)
-    st.dataframe(df_tags)
+    st.dataframe(df_tags, key="df_tags")
 
     can_proceed = True
 
     st.space()
     col_1, col_2 = st.columns([6, 1])
     with col_2:
-        if st.button("Clear all tags", width="stretch"):
+        if st.button("Clear all tags", width="stretch", key="clear_tags_btn"):
             st.session_state.VARIABLE_TAGS = {}
             st.rerun()
 
@@ -689,7 +689,8 @@ def view_tags_dialog():
 
     input_type = st.selectbox(
         "Input type",
-        options=["Manual", "Upload"]
+        options=["Manual", "Upload"],
+        key="input_type_tags"
     )
     current_variable = None
     df_new_tags = None
@@ -705,7 +706,8 @@ def view_tags_dialog():
 
         current_variable = st.selectbox(
             "Choose variable or statement",
-            options=choices
+            options=choices,
+            key="choose_statement_tags"
         )
         current_variable = current_variable.split(" - ")[0]
 
@@ -721,7 +723,8 @@ def view_tags_dialog():
             "Enter new tags",
             options=list(st.session_state.VARIABLE_TAGS[current_variable]),
             accept_new_options=True,
-            placeholder="Selecting no tag will remove all tags.."
+            placeholder="Selecting no tag will remove all tags..",
+            key="tags_multi"
         )
     else:
         new_tags = st.file_uploader(label="Upload CSV file for the manifest variable tags", type="csv", width="stretch",
@@ -748,11 +751,11 @@ def view_tags_dialog():
         st.space()
         col_1, col_2 = st.columns([6, 1])
         with col_2:
-            if st.button("Confirm", width="stretch"):
+            if st.button("Confirm", width="stretch", key="confirm_tags_btn"):
                 if input_type == "Manual":
                     st.session_state.VARIABLE_TAGS[current_variable] = new_tags
                 else:
-                    st.dataframe(df_new_tags)
+                    st.dataframe(df_new_tags, key="df_new_tags")
                     for idx, row in df_new_tags.iterrows():
                         variable = row["variable"]
                         tags = row["tags"].split(",") if not pd.isna(row["tags"]) else []
@@ -764,7 +767,7 @@ def view_tags_dialog():
 @st.dialog(":material/analytics: View basic stats", width="large")
 def view_data_dialog():
     with st.expander("Raw data"):
-        st.dataframe(st.session_state.DATA)
+        st.dataframe(st.session_state.DATA, key="raw_data_df")
         st.space()
 
     with st.expander("Associated statement for each variable"):
@@ -780,11 +783,11 @@ def view_data_dialog():
                     ]
                 }
             )
-            st.dataframe(var_statement)
+            st.dataframe(var_statement, key="var_statement_df")
         st.space()
 
     with st.expander("Summary statistics"):
-        st.dataframe(st.session_state.DATA.describe())
+        st.dataframe(st.session_state.DATA.describe(), key="describe_data_df")
         st.space()
 
     with st.expander("Correlation matrix"):
@@ -802,8 +805,8 @@ def view_data_dialog():
         fig_corr.update_layout(
             height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
         )
-        st.plotly_chart(fig_corr, width="stretch")
-        st.dataframe(corr_mat)
+        st.plotly_chart(fig_corr, width="stretch", key="basic_stats_fig_corr")
+        st.dataframe(corr_mat, key="corr_mat_df")
         st.space()
 
     with st.expander("Semantic similarity matrix"):
@@ -826,8 +829,8 @@ def view_data_dialog():
                 fig_semantic.update_layout(
                     height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
                 )
-                st.plotly_chart(fig_semantic, width="stretch")
-                st.dataframe(semantic_similarity_mat)
+                st.plotly_chart(fig_semantic, width="stretch", key="basic_stats_fig_semantic")
+                st.dataframe(semantic_similarity_mat, key="semantic_mat_df")
             else:
                 st.write(":hourglass_flowing_sand: Loading...")
         st.space()
@@ -852,31 +855,32 @@ def fit_model_dialog():
     col_1, col_2 = st.columns(2)
     with col_1:
         model_name = st.text_input(label="Model name", value=f"model_{len(st.session_state.FACTOR_MODELS) + 1}",
-                                   help="This must be unique.", width="stretch")
+                                   help="This must be unique.", width="stretch", key="model_name_fit")
     with col_2:
         number_of_factors = st.number_input(label="Number of factors", placeholder="Enter a positive number...",
                                             value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
                                             help="The number of factors cannot exceed the number of manifest "
-                                                 "variables.", width="stretch")
+                                                 "variables.", width="stretch", key="num_fac_input")
     manifest_vars = st.multiselect(
         "Manifest variables",
         options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
-        help="Only these manifest variables will be considered in the factor model."
+        help="Only these manifest variables will be considered in the factor model.",
+        key="manifest_fit"
     )
     col_1, col_2 = st.columns(2)
     with col_1:
-        rotation = st.selectbox(label="Rotation", placeholder="Select a rotation method...",
+        rotation = st.selectbox(label="Rotation", placeholder="Select a rotation method...", key="rotation_fit",
                                 options=ROTATIONS, help="Priorimax, Varimax, Oblimax, Quartimax, and Equamax are "
                                                         "orthogonal rotations. Promax, Oblimin, and Quartimin are "
                                                         "oblique rotations.", width="stretch")
     with col_2:
         prior = st.selectbox(label="Prior matrix", placeholder="Specify the prior matrix for priorimax...",
-                             options=("Semantics", "Grouped", "Custom", "None"),
+                             options=("Semantics", "Grouped", "Custom", "None"), key="prior_fit",
                              help="""
                              "Semantics" uses the semantic similarity matrix. "Custom" lets you specify the exact 
                              matrix by uploading a CSV file. This is required when using the priorimax rotation and 
                              optional for other rotation methods.""", width="stretch")
-        show_prior_matrix = st.checkbox("Show exact prior matrix?")
+        show_prior_matrix = st.checkbox("Show exact prior matrix?", key="show_exact_prior_checkbox")
 
     if len(manifest_vars) < 2:
         st.warning("Please select at least two manfiest variables first.")
@@ -904,7 +908,7 @@ def fit_model_dialog():
                         height=min(900, max(50 * len(manifest_vars), 300)),
                         title="The semantic similarity matrix will be used as the prior matrix."
                     )
-                    st.plotly_chart(fig_semantic, width="stretch")
+                    st.plotly_chart(fig_semantic, width="stretch", key="model_fit_fig_semantic")
                 prior_matrix = semantic_similarity_mat
         elif prior == "Grouped":
             cols = st.columns(3)
@@ -924,7 +928,8 @@ def fit_model_dialog():
                     current_col = cols[factor_number % len(cols)]
                     with current_col:
                         groupings.append(
-                            st.multiselect(label=f"Grouping {factor_number + 1}", options=group_choices)
+                            st.multiselect(label=f"Grouping {factor_number + 1}", options=group_choices,
+                                           key=f"grouping_for_{factor_number}_fit")
                         )
 
             for idx, grouping in enumerate(groupings):
@@ -956,7 +961,7 @@ def fit_model_dialog():
                         height=min(900, max(50 * prior_matrix.shape[1], 300)),
                         title="This grouping matrix will be used as the prior matrix."
                     )
-                    st.plotly_chart(fig_prior, width="stretch")
+                    st.plotly_chart(fig_prior, width="stretch", key="model_fit_grouped_prior")
         elif prior == "Custom":
             prior_matrix = st.file_uploader(label="Upload CSV file for the prior matrix", type="csv", width="stretch",
                                             disabled=(prior != "Custom"))
@@ -981,7 +986,7 @@ def fit_model_dialog():
                             height=min(900, max(50 * len(manifest_vars), 300)),
                             title="This custom matrix will be used as the prior matrix."
                         )
-                        st.plotly_chart(fig_prior, width="stretch")
+                        st.plotly_chart(fig_prior, width="stretch", key="custom_prior_fit")
                 else:
                     st.error(check["message"])
                     can_proceed = False
@@ -996,7 +1001,7 @@ def fit_model_dialog():
                 Please upload the CSV file. Please make sure that the order of the rows (and columns) match the order of 
                 the manifest variables shown below.
                 """)
-                st.dataframe(manifest_statements)
+                st.dataframe(manifest_statements, key="man_stat_df")
                 can_proceed = False
         elif prior == "None":
             prior_matrix = None
@@ -1004,11 +1009,11 @@ def fit_model_dialog():
     st.space()
     col_1, col_2, col_3 = st.columns([12, 3, 3])
     with col_3:
-        if st.button("Cancel", width="stretch"):
+        if st.button("Cancel", width="stretch", key="cancel_fit_btn"):
             st.rerun()
     if can_proceed:
         with col_2:
-            if st.button("Fit model", width="stretch", type="primary"):
+            if st.button("Fit model", width="stretch", type="primary", key="confirm_fit_btn"):
                 any_failed = False
 
                 if model_name.strip() == "" or model_name is None:
@@ -1072,7 +1077,7 @@ def delete_factor_model(model_name):
 @st.dialog(":material/bar_chart: View factor models", width="large", on_dismiss="rerun")
 def view_models_dialog():
     model_name = st.selectbox("Choose a model", options=sorted(list(st.session_state.FACTOR_MODELS.keys())),
-                              width="stretch")
+                              width="stretch", key="choose_model_select")
 
     if model_name is None:
         st.error("There are no factor models available.")
@@ -1080,7 +1085,7 @@ def view_models_dialog():
         col_1, col_2 = st.columns([21, 3])
         with col_2:
             st.button("Delete model", on_click=delete_factor_model, args=(model_name,),
-                      width="stretch")
+                      width="stretch", key="delete_model_btn")
 
         st.subheader("Fit details")
 
@@ -1126,7 +1131,7 @@ def view_models_dialog():
                     height=min(900, max(50 * len(fit_details["manifest_vars"]), 300)),
                     title="Prior Matrix"
                 )
-                st.plotly_chart(fig_prior, width="stretch")
+                st.plotly_chart(fig_prior, width="stretch", key="view_prior_view_model")
                 col_1, col_2, col_3 = st.columns(3)
                 with col_2:
                     st.download_button("Download prior matrix as CSV file", df_prior_matrix.to_csv(),
@@ -1160,7 +1165,7 @@ def view_models_dialog():
         )
 
         st.caption("Means, correlations, communalities, and sampling adequacies")
-        st.dataframe(model_analysis_styled)
+        st.dataframe(model_analysis_styled, key="styled_comms_df")
         with st.expander("View interactive standardized loadings heatmap"):
             model_analysis = model_analysis.set_index("VARIABLE")
             model_analysis = model_analysis[[col for col in model_analysis.columns if col.startswith("FACTOR_")]]
@@ -1178,7 +1183,7 @@ def view_models_dialog():
             fig_loadings.update_layout(
                 height=min(900, max(50 * len(fit_details["manifest_vars"]), 300))
             )
-            st.plotly_chart(fig_loadings, width="stretch")
+            st.plotly_chart(fig_loadings, width="stretch", key="view_loadings_view_model")
 
         st.space()
 
@@ -1196,7 +1201,7 @@ def view_models_dialog():
             opacity=0.8
         )
         st.caption("Factor score distribution")
-        st.plotly_chart(fig_scores_hist, width="stretch")
+        st.plotly_chart(fig_scores_hist, width="stretch", key="view_factor_scores_view_model")
         df_data_with_factor_scores = pd.concat([st.session_state.DATA, df_factor_scores], axis=1)
         col_1, col_2, col_3 = st.columns(3)
         with col_2:
@@ -1222,7 +1227,7 @@ def view_models_dialog():
         fig_factor_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
         fig_factor_corr.update_yaxes(tickmode="linear", dtick=1)
         st.caption("Factor correlations")
-        st.plotly_chart(fig_factor_corr, width="stretch")
+        st.plotly_chart(fig_factor_corr, width="stretch", key="view_factor_corr_view_model")
         col_1, col_2, col_3 = st.columns(3)
         with col_2:
             st.download_button("Download factor correlations as CSV file", df_factor_corr_mat.to_csv(),
@@ -1258,7 +1263,7 @@ st.markdown("Developed by [Justin Philip Tuazon](https://www.linkedin.com/in/jus
 st.sidebar.title(":material/menu: Menu")
 
 with st.sidebar:
-    show_floating_top = st.checkbox("""Show "Back to Top" button""", value=True)
+    show_floating_top = st.checkbox("""Show "Back to Top" button""", key="show_back_to_top", value=True)
 
 with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True):
     st.subheader("Universal Sentence Encoder")
@@ -1299,7 +1304,8 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
         st.session_state.CURRENT_LLM_MODEL_ID = st.selectbox(
             "Model in use:",
             options=LLM_MODEL_IDS,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="llm_choice"
         )
 
         col_label, col_help = st.columns([0.9, 0.1])
@@ -1309,8 +1315,8 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
             st.markdown("", help="Larger values encourage randomness and creativity, while "
                                  "smaller values encourage determinism and focus. For more consistent interpretations "
                                  "and formatting, choose a value not greater than 0.1.")
-        llm_temp = st.slider("LLM temperature:", min_value=0.0, max_value=0.5, step=0.05, value=0.1,
-                             label_visibility="collapsed")
+        llm_temp = st.slider("LLM temperature:", min_value=0.0, max_value=0.5, step=0.025, value=0.0,
+                             label_visibility="collapsed", key="llm_temp_slider")
     else:
         st.error("Failed to connect. Please refresh.")
 
@@ -1320,15 +1326,15 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
         col_1, col_2, col_3 = st.columns([1, 5, 1])
         with col_2:
             st.button("Upload", width="stretch", disabled=(st.session_state.USE_MODEL_LOADED != 1),
-                      on_click=upload_data_dialog)
+                      on_click=upload_data_dialog, key="upload_data_btn")
     else:
         st.subheader("Dataset")
         st.text_input("Dataset", value=str(st.session_state.DATA_NAME),
-                      label_visibility="collapsed", disabled=True)
+                      label_visibility="collapsed", disabled=True, key="dataset_label_input")
 
         st.subheader("Statements")
         st.text_input("Statements name", value=str(st.session_state.STATEMENTS_NAME),
-                      label_visibility="collapsed", disabled=True)
+                      label_visibility="collapsed", disabled=True, key="statements_label_input")
 
         col_1, col_2 = st.columns(2)
         with col_1:
@@ -1340,15 +1346,15 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
 
         col_1, col_2 = st.columns(2)
         with col_1:
-            st.button("Stats", width="stretch", type="primary", on_click=view_data_dialog)
+            st.button("Stats", width="stretch", type="primary", key="stats_view_data", on_click=view_data_dialog)
         with col_2:
-            st.button("Tags", width="stretch", on_click=view_tags_dialog)
+            st.button("Tags", width="stretch", key="view_tags_btn", on_click=view_tags_dialog)
 
         col_1, col_2 = st.columns(2)
         with col_1:
-            st.button("Change", width="stretch", on_click=upload_data_dialog)
+            st.button("Change", width="stretch", key="change_data_btn", on_click=upload_data_dialog)
         with col_2:
-            if st.button("Clear", width="stretch"):
+            if st.button("Clear", width="stretch", key="clear_data_btn"):
                 st.session_state.DATA = None
                 st.session_state.DATA_NAME = None
                 st.session_state.STATEMENTS = None
@@ -1365,10 +1371,10 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
 with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=True):
     col_1, col_2 = st.columns(2)
     with col_1:
-        st.button("Add", width="stretch", on_click=fit_model_dialog, type="primary",
+        st.button("Add", width="stretch", on_click=fit_model_dialog, type="primary", key="add_model_btn",
                   disabled=(st.session_state.USE_MODEL_LOADED != 1) or (st.session_state.DATA is None))
     with col_2:
-        st.button("View", width="stretch", on_click=view_models_dialog,
+        st.button("View", width="stretch", on_click=view_models_dialog, key="view_model_btn",
                   disabled=(st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0))
 
     st.subheader("Models")
@@ -1440,7 +1446,7 @@ with tab_overview:
                     zeroline=False
                 )
             )
-            st.plotly_chart(fig_sample_v_plot, width="stretch")
+            st.plotly_chart(fig_sample_v_plot, width="stretch", key="sample_v_plot")
         st.write("Feel free to interact with the sample visualization above to see how the plot changes depending on "
                  "how interpretable the factor model is!")
 
@@ -1554,8 +1560,7 @@ with tab_overview:
         [paper](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
 
         ###### Limitations and Future Releases
-        * The tool currently does not support a correlation matrix as the main dataset and polychoric correlations. 
-        These will be added in the future.
+        * The tool currently does not support polychoric correlations. This will be added in the future.
         * The Universal Sentence Encoder is the only embedding model supported right now.
         
         ###### Additional Information
@@ -1568,132 +1573,109 @@ with tab_diagnostics:
     if st.session_state.DATA is None:
         st.warning("Upload a dataset first.")
     else:
-        diagnostics_sub_tab = st.radio(
-            "Choose what to examnie",
-            ["Factor model goodness-of-fit", "Raw data explorer"],
-            key="diag_sub_tab",
-            horizontal=True
+        manifest_vars = st.multiselect(
+            "Manifest variables",
+            options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
+            help="Only these manifest variables will be considered in the diagnostics of the factor model.",
+            key="choose_manifest_diag"
         )
-        st.space("small")
+        number_of_factors = st.slider(label="Number of factors", step=1,
+                                      value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
+                                      help="The number of factors cannot exceed the number of manifest "
+                                           "variables.", width="stretch", key="num_fac_slider")
 
-        if diagnostics_sub_tab == "Factor model goodness-of-fit":
-            manifest_vars = st.multiselect(
-                "Manifest variables",
-                options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
-                help="Only these manifest variables will be considered in the diagnostics of the factor model."
-            )
-            number_of_factors = st.slider(label="Number of factors", step=1,
-                                          value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
-                                          help="The number of factors cannot exceed the number of manifest "
-                                               "variables.", width="stretch")
+        st.space()
 
-            st.space()
+        if len(manifest_vars) < 2:
+            st.warning("Select at least two manifest variables.")
+        elif len(manifest_vars) <= number_of_factors:
+            st.warning("The number of factors must be less than the number of manifest variables.")
+        else:
+            data_subset = st.session_state.DATA[manifest_vars]
+            ifa = InterpretableFA(data_subset)
+            ifa.fit_factor_model("model", number_of_factors, None)
 
-            if len(manifest_vars) < 2:
-                st.warning("Select at least two manifest variables.")
-            elif len(manifest_vars) <= number_of_factors:
-                st.warning("The number of factors must be less than the number of manifest variables.")
-            else:
-                data_subset = st.session_state.DATA[manifest_vars]
-                ifa = InterpretableFA(data_subset)
-                ifa.fit_factor_model("model", number_of_factors, None)
-
-                model_analysis = ifa.analyze_model("model").reset_index(drop=True)
-                means = pd.DataFrame({
-                    "variable": [manifest_var for manifest_var in manifest_vars],
-                    "mean": [st.session_state.DATA[manifest_var].mean() for manifest_var in manifest_vars]
-                })
-                model_analysis = pd.merge(left=model_analysis, right=means, on="variable", how="inner")
-                if st.session_state.STATEMENTS_DF is not None:
-                    model_analysis = pd.merge(left=model_analysis, right=st.session_state.STATEMENTS_DF,
-                                              left_on="variable", right_on="Variable", how="inner")
-                    model_analysis = model_analysis[
-                        ["variable", "Statement", "mean"] +
-                        [col for col in model_analysis.columns if col.startswith("factor_")] +
-                        ["communality", "kmo_msa"]
-                        ]
-                model_analysis.columns = [col.upper() for col in model_analysis.columns]
-                model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
-                model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
-                model_analysis_styled = model_analysis_styled.style.background_gradient(
-                    cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
-                )
-
-                with st.expander("Communalities and adequacies"):
-                    st.dataframe(model_analysis_styled)
-
-                with st.expander("Scree plot"):
-                    loadings_only = model_analysis[[col for col in model_analysis.columns
-                                                    if col.startswith("FACTOR_")]].copy()
-                    squared_loadings = loadings_only ** 2
-                    eigenvalues = squared_loadings.sum().sort_values(ascending=False)
-                    df_eigenvalues = pd.DataFrame({
-                        "Factor": eigenvalues.index,
-                        "Sum of Squared Loadings": eigenvalues
-                    }).reset_index(drop=True)
-                    fig_scree = px.line(
-                        df_eigenvalues,
-                        x="Factor",
-                        y="Sum of Squared Loadings",
-                        text="Sum of Squared Loadings",
-                        markers=True,
-                        title="Eigenvalue per factor"
-                    )
-                    fig_scree.update_layout(
-                        yaxis=dict(
-                            visible=True,
-                            showticklabels=True,
-                            showline=False,
-                            showgrid=False,
-                            zeroline=False
-                        )
-                    )
-                    fig_scree.update_traces(
-                        mode="lines+markers+text",
-                        texttemplate="%{text:.3f}",
-                        textposition="top center"
-                    )
-                    fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion",
-                                        annotation_position="top left")
-                    st.markdown(f"""
-                    The total sum of eigenvalues is 
-                    :blue-badge[{np.round(df_eigenvalues["Sum of Squared Loadings"].sum(), 4)}] out 
-                    of the theoretical maximum of :blue-badge[{len(manifest_vars)}].
-                    """)
-                    st.plotly_chart(fig_scree, width="stretch")
-                    st.space()
-
-                with st.expander("Correlations"):
-                    corr_mat = data_subset.corr()
-                    fig_corr = px.imshow(
-                        corr_mat,
-                        text_auto="0.2f",
-                        aspect="auto",
-                        color_continuous_scale="RdBu",
-                        zmin=-1, zmax=1,
-                        title="Subsetted correlation matrix"
-                    )
-                    fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-                    fig_corr.update_yaxes(tickmode="linear", dtick=1)
-                    fig_corr.update_layout(
-                        height=min(650, max(25 * st.session_state.DATA.shape[1], 300))
-                    )
-                    st.plotly_chart(fig_corr, width="stretch")
-        elif diagnostics_sub_tab == "Raw data explorer":
-            st.button("View quick summary", width="stretch", on_click=view_data_dialog)
-            st.space("xxsmall")
-            if st.session_state.STATEMENTS is not None and st.session_state.STATEMENTS_DF is not None:
-                df_explorer = st.session_state.DATA.copy()
-                df_explorer.columns = [
-                    f"X{idx + 1} - " + str(st.session_state.STATEMENTS_DF[
-                                               st.session_state.STATEMENTS_DF["Variable"] == col
-                                               ]["Statement"].item())
-                    for idx, col in enumerate(df_explorer.columns)
+            model_analysis = ifa.analyze_model("model").reset_index(drop=True)
+            means = pd.DataFrame({
+                "variable": [manifest_var for manifest_var in manifest_vars],
+                "mean": [st.session_state.DATA[manifest_var].mean() for manifest_var in manifest_vars]
+            })
+            model_analysis = pd.merge(left=model_analysis, right=means, on="variable", how="inner")
+            if st.session_state.STATEMENTS_DF is not None:
+                model_analysis = pd.merge(left=model_analysis, right=st.session_state.STATEMENTS_DF,
+                                          left_on="variable", right_on="Variable", how="inner")
+                model_analysis = model_analysis[
+                    ["variable", "Statement", "mean"] +
+                    [col for col in model_analysis.columns if col.startswith("factor_")] +
+                    ["communality", "kmo_msa"]
                 ]
-            else:
-                df_explorer = st.session_state.DATA
-            pyg_app = StreamlitRenderer(df_explorer)
-            pyg_app.explorer()
+            model_analysis.columns = [col.upper() for col in model_analysis.columns]
+            model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
+            model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
+            model_analysis_styled = model_analysis_styled.style.background_gradient(
+                cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+            )
+
+            with st.expander("Communalities and adequacies"):
+                st.dataframe(model_analysis_styled, key="styled_analysis_df")
+
+            with st.expander("Scree plot"):
+                loadings_only = model_analysis[[col for col in model_analysis.columns
+                                                if col.startswith("FACTOR_")]].copy()
+                squared_loadings = loadings_only ** 2
+                eigenvalues = squared_loadings.sum().sort_values(ascending=False)
+                df_eigenvalues = pd.DataFrame({
+                    "Factor": eigenvalues.index,
+                    "Sum of Squared Loadings": eigenvalues
+                }).reset_index(drop=True)
+                fig_scree = px.line(
+                    df_eigenvalues,
+                    x="Factor",
+                    y="Sum of Squared Loadings",
+                    text="Sum of Squared Loadings",
+                    markers=True,
+                    title="Eigenvalue per factor"
+                )
+                fig_scree.update_layout(
+                    yaxis=dict(
+                        visible=True,
+                        showticklabels=True,
+                        showline=False,
+                        showgrid=False,
+                        zeroline=False
+                    )
+                )
+                fig_scree.update_traces(
+                    mode="lines+markers+text",
+                    texttemplate="%{text:.3f}",
+                    textposition="top center"
+                )
+                fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion",
+                                    annotation_position="top left")
+                st.markdown(f"""
+                The total sum of eigenvalues is 
+                :blue-badge[{np.round(df_eigenvalues["Sum of Squared Loadings"].sum(), 4)}] out 
+                of the theoretical maximum of :blue-badge[{len(manifest_vars)}].
+                """)
+                st.plotly_chart(fig_scree, width="stretch", key="fig_scree")
+                st.space()
+
+            with st.expander("Correlations"):
+                corr_mat = data_subset.corr()
+                fig_corr = px.imshow(
+                    corr_mat,
+                    text_auto="0.2f",
+                    aspect="auto",
+                    color_continuous_scale="RdBu",
+                    zmin=-1, zmax=1,
+                    title="Subsetted correlation matrix"
+                )
+                fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                fig_corr.update_yaxes(tickmode="linear", dtick=1)
+                fig_corr.update_layout(
+                    height=min(650, max(25 * st.session_state.DATA.shape[1], 300))
+                )
+                st.plotly_chart(fig_corr, width="stretch", key="fig_corr_diag")
 
 with tab_dashboard:
     st.badge(":material/info: If your screen is not wide enough for the horizontal layout, "
@@ -1707,7 +1689,8 @@ with tab_dashboard:
             selected_models = st.multiselect(
                 "Select models to examine", options=sorted(list(st.session_state.FACTOR_MODELS.keys())),
                 help="You can choose up to 2 models at a time.",
-                max_selections=2
+                max_selections=2,
+                key="compare_models_select"
             )
 
         st.space()
@@ -1904,16 +1887,43 @@ with tab_dashboard:
 
             # Factor loadings
             cols = st.columns(len(selected_models), border=True)
-            threshs = []
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
                     model_analysis = model_analyses[i]
                     loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
                                                                    if col.startswith("factor_")]]
-
+                    
                     st.subheader(":material/bar_chart_4_bars: Factor loadings")
                     st.space()
+
+                    show_each_factor = st.checkbox(
+                        "Show the ECDF of the absolute loadings for each factor",
+                        key=f"{model_name}_show_each_factor",
+                        value=True,
+                        help="""
+                        If checked, the ECDF of the absolute loadings for each factor 
+                        will be shown, in addition to the overall (entire model) ECDF of the 
+                        absolute loadings.
+                        """
+                    )
+                    cumul_slot = st.empty()
+
+                    factor_loadings = loadings_only[[
+                        col for col in loadings_only.columns if col.startswith("factor_")
+                    ]]
+                    factor_loadings = factor_loadings.abs()
+                    factor_loadings_long = factor_loadings.melt(var_name="factor", value_name="value")
+                    factor_loadings_copy = factor_loadings_long.copy()
+                    factor_loadings_copy["factor"] = "All factors"
+                    factor_loadings_long = pd.concat([
+                        factor_loadings_long, factor_loadings_copy
+                    ], axis=0)
+                    del factor_loadings_copy
+                    if not show_each_factor:
+                        factor_loadings_long = factor_loadings_long[
+                            factor_loadings_long["factor"] == "All factors"
+                        ]
 
                     thresh = st.slider(
                         "Absolute threshold", min_value=0.0, max_value=1.0, value=0.35,
@@ -1924,17 +1934,62 @@ with tab_dashboard:
                         it is not.
                         """, key=f"{model_name}_thresh_slider"
                     )
-                    threshs.append(thresh)
                     col_1, col_2 = st.columns(2)
                     with col_1:
                         show_raw = st.checkbox("Show original loadings instead?",
-                                               key=f"{model_name}_show_raw_instead")
+                                               key=f"{model_name}_show_raw_instead",
+                                               help="""
+                                               Leaving this unchecked will show the *binarized* loadings, where a 
+                                               manifest variable is either "included" or "not included" in a factor 
+                                               based on whether the absolute value of the loading exceeds or equals the 
+                                               threshold, or not.
+                                               """)
                     with col_2:
                         sort_by_variable = st.checkbox(
                             "Sort by variable name instead?", key=f"{model_name}_sort_by_var",
                             help="By default, the manifest variables are sorted in descending order in terms of "
                                  "their largest loadings. Clicking this will sort them by their name instead."
                         )
+
+                    st.space()
+
+                    fig_cumul = px.ecdf(
+                        factor_loadings_long,
+                        x="value",
+                        color="factor",
+                        title="Empirical Cumulative Distribution of Absolute Loadings",
+                        lines=True,
+                        marginal="box"
+                    )
+                    fig_cumul.update_layout(
+                        xaxis_title="Absolute Loading",
+                        yaxis_title="Cumulative Probability",
+                        legend_title_text="Factor"
+                    )
+                    fig_cumul.add_vline(
+                        x=thresh,
+                        line_width=2,
+                        line_dash="dash",
+                        line_color="gray",
+                        annotation_text="Threshold",
+                        annotation_position="top left",
+                        row=1,
+                        col=1
+                    )
+                    fig_cumul.add_vline(
+                        x=thresh,
+                        line_width=2,
+                        line_dash="dash",
+                        line_color="gray",
+                        row=2,
+                        col=1
+                    )
+                    fig_cumul.update_yaxes(
+                        showgrid=False,
+                        zeroline=False
+                    )
+
+                    cumul_slot.plotly_chart(fig_cumul, width="stretch", key=f"{model_name}_cumul")
 
                     df_loadings = loadings_only.copy()
                     if sort_by_variable:
@@ -1997,12 +2052,13 @@ with tab_dashboard:
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
                                        file_name="factor_loadings.csv", width="stretch")
+                    st.space()
                     with st.expander("View variables / statements associated with each factor"):
                         for idx, factor in enumerate(df_loadings_discretized.columns):
                             factor_loadings = df_loadings_discretized[factor]
                             variables = df_loadings_discretized[factor_loadings == 1].index.tolist()
                             st.markdown(f"#### {factor}")
-                            st.write(f"{len(variables)} manifest variable{'s' if len(variables) > 1 else ''}")
+                            st.write(f"{len(variables)} manifest variable{'s' if len(variables) != 1 else ''}")
                             if len(variables) == 0:
                                 st.write("No variables associated.")
                             else:
@@ -2010,7 +2066,7 @@ with tab_dashboard:
                                     if st.session_state.STATEMENTS_DF is not None:
                                         statement = st.session_state.STATEMENTS_DF[
                                             st.session_state.STATEMENTS_DF["Variable"] == variable
-                                            ]["Statement"].item()
+                                        ]["Statement"].item()
                                         if statement is None:
                                             st.write(variable)
                                         else:
@@ -2229,7 +2285,7 @@ with tab_dashboard:
 
                     df_loadings_discretized = df_loadings
                     df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
-                        float(threshs[i])
+                        float(thresh)
                     ).astype(int)
 
                     with st.expander("Options"):
@@ -2351,7 +2407,7 @@ with tab_dashboard:
 
                     df_loadings_discretized = df_loadings
                     df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
-                        float(threshs[i])
+                        float(thresh)
                     ).astype(int)
 
                     st.subheader(":material/cognition_2: Interpretation")
