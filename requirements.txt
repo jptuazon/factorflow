@@ -5,7 +5,6 @@ scikit-learn<1.8.0
 factor-analyzer
 tensorflow
 tensorflow-hub
-interpretablefa>=6.0.5
 scipy
 statsmodels
 matplotlib
