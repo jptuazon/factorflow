@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.3.1
+# FactorFlow V2.3.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -23,7 +23,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from groq import Groq
-from interpretablefa import InterpretableFA
+from factor_model_trainer import InterpretableFA
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
@@ -386,7 +386,7 @@ def interpret_factor_model(df_discretized_loadings):
             for variable in variables:
                 statement = st.session_state.STATEMENTS_DF[
                     st.session_state.STATEMENTS_DF["Variable"] == variable
-                    ]["Statement"].item()
+                ]["Statement"].item()
                 input_for_llm += f"- {statement}\n"
 
     input_for_llm = input_for_llm.encode("utf-8").decode("unicode_escape")
@@ -478,40 +478,40 @@ def compute_tags_breakdown(df_loadings):
 
     tags = []
     factors = []
-    absolute_loadings_sum = []
+    squared_loadings_sum = []
     for factor, tag in product(factor_cols, list(tag_variable.keys())):
         variables = tag_variable[tag]
-        factor_absolute_loadings = df_loadings[["variable", factor]].copy()
-        factor_absolute_loadings["included"] = factor_absolute_loadings["variable"].isin(variables).astype(int)
-        total = factor_absolute_loadings[
-            factor_absolute_loadings["included"] == 1
-            ][factor].sum()
+        factor_squared_loadings = df_loadings[["variable", factor]].copy()
+        factor_squared_loadings["included"] = factor_squared_loadings["variable"].isin(variables).astype(int)
+        total = factor_squared_loadings[
+            factor_squared_loadings["included"] == 1
+        ][factor].sum()
         tags.append(tag)
         factors.append(factor)
-        absolute_loadings_sum.append(total)
+        squared_loadings_sum.append(total)
 
-        del factor_absolute_loadings
+        del factor_squared_loadings
 
     tagged_variables = set([variable for variables in tag_variable.values() for variable in variables])
     untagged_variables = [f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])
                           if f"X{idx + 1}" not in tagged_variables]
     for factor in factor_cols:
         variables = untagged_variables
-        factor_absolute_loadings = df_loadings[["variable", factor]].copy()
-        factor_absolute_loadings["included"] = factor_absolute_loadings["variable"].isin(variables).astype(int)
-        total = factor_absolute_loadings[
-            factor_absolute_loadings["included"] == 1
-            ][factor].sum()
+        factor_squared_loadings = df_loadings[["variable", factor]].copy()
+        factor_squared_loadings["included"] = factor_squared_loadings["variable"].isin(variables).astype(int)
+        total = factor_squared_loadings[
+            factor_squared_loadings["included"] == 1
+        ][factor].sum()
         tags.append("No tag")
         factors.append(factor)
-        absolute_loadings_sum.append(total)
+        squared_loadings_sum.append(total)
 
-        del factor_absolute_loadings
+        del factor_squared_loadings
 
     df_tags_breakdown = pd.DataFrame({
         "Factor": factors,
         "Tag": tags,
-        "Sum of Squared Loadings": absolute_loadings_sum
+        "Sum of Squared Loadings": squared_loadings_sum
     })
 
     del df_loadings
@@ -1155,7 +1155,7 @@ def view_models_dialog():
                 ["variable", "Statement", "mean"] +
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
-                ]
+            ]
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
             cmap="RdBu", axis=None, subset=[col for col in model_analysis.columns if col.startswith("factor_")],
