@@ -1,0 +1,11 @@
+[theme]
+primaryColor="#2176FF"
+backgroundColor="#FFFFFF"
+secondaryBackgroundColor="#ECF0F1"
+textColor="#31393C"
+base="light"
+linkUnderline=0
+font="Inter:https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+baseFontSize=14
+baseRadius="none"
+borderColor="#CAD5CA"
