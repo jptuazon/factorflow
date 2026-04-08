@@ -36,11 +36,13 @@ FactorFlow (a Streamlit app) can be accessed here: [https://factorflow-efa.strea
 </table>
 
 # Notes
-* Currently, the tool does not support polychoric correlations. These will be added in the future.
-* The Universal Sentence Encoder is the only embedding model supported right now.
-* FactorFlow is made available under the GNU General Public License v3.0.
-* The tool can be found [here](https://factorflow-efa.streamlit.app/).
-* Sample datasets can be found [here](https://drive.google.com/drive/u/1/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X).
-* The code repository for this tool can be found 
-[here](https://github.com/jptuazon/factorflow).
-* You can reach out to jstuazon@alum.up.edu.ph for related concerns.
+* The tool currently does not support polychoric correlations. This will be added in the future.
+* The Universal Sentence Encoder is the only embedder available for the statements for now.
+* A video walkthrough of the tool is in the works.
+
+# About
+* Developer: Justin Philip Tuazon
+    * [jstuazon@alum.up.edu.ph](jstuazon@alum.up.edu.ph)
+    * [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/)
+* Adviser: Joemari Olea
+* Copyright 2026 Justin Philip Tuazon
