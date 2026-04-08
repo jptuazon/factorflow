@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.3.2
+# FactorFlow V2.3.3
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -29,7 +29,7 @@ from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
 from streamlit_extras.floating_button import floating_button
 from streamlit_extras.scroll_to_element import scroll_to_element
-
+from streamlit_lottie import st_lottie
 
 # Universal sentence encoder set up
 def load_use_model():
@@ -399,16 +399,7 @@ st.set_page_config(
     page_title="FactorFlow",
     page_icon=":bar_chart:",
     layout="wide",
-    initial_sidebar_state="auto",
-    menu_items={
-        "About": """
-        * Version Number: 2.3.1
-        * FactorFlow was developed by Justin Philip Tuazon. You may reach out via email at jstuazon@alum.up.edu.ph or  
-        [LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/).
-        * The pairwise target rotation method used here was authored by Justin Philip Tuazon, Gia Mizrane Abubo, and 
-        Joemari Olea. The pre-print of the method can be found [here](https://arxiv.org/abs/2409.11525).
-        """
-    }
+    initial_sidebar_state="auto"
 )
 
 # App constants
@@ -418,6 +409,11 @@ ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
 
 
 # App functions
+def load_lottie_file(path):
+    with open(path, "r") as f:
+        return json.load(f)
+
+
 def get_mean_color(hex_colors):
     if not hex_colors:
         return "#000000"
@@ -1243,6 +1239,17 @@ st.markdown("""
             height: 0px;
             background-color: rgba(0,0,0,0) !important;
         }
+        
+        div:has(> iframe[title="streamlit_lottie.streamlit_lottie"]) {
+            overflow: hidden !important;
+            margin: auto;
+        }
+    
+        .st-key-rotation_lottie iframe {
+            transform: scale(1) !important;
+            transform-origin: center center;
+            
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -1396,6 +1403,20 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
             st.caption(model_name)
             st.write(description)
 
+with st.sidebar:
+    st.title(":material/info: About")
+    st.markdown("""
+    * Version Number: 2.3.3
+    * Developer: Justin Tuazon
+        * [:material/mail: jstuazon@alum.up.edu.ph](jstuazon@alum.up.edu.ph)
+        * [:material/link_2: LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/)
+    * Adviser: Joemari Olea
+    * Repository: [:material/folder_code: GitHub](https://github.com/jptuazon/factorflow)
+    * License: [:material/license: GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)
+    
+    Copyright :material/copyright: 2026 Justin Philip Tuazon
+    """)
+
 # Body
 tab_overview, tab_diagnostics, tab_dashboard = st.tabs([
     ":material/home: Overview",
@@ -1405,19 +1426,31 @@ tab_overview, tab_diagnostics, tab_dashboard = st.tabs([
 
 with tab_overview:
     with st.expander("Description", True, icon=":material/description:"):
+
         st.markdown("""
         FactorFlow is an interactive tool intended to help practitioners perform exploratory factor
         analysis better. Using this tool, users can upload their dataset, fit various factor models, and 
-        perform factor rotations. It comes with the following key features or components:
-        * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., 
-        correlation heatmap) for core exploratory factor analysis
-        * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for 
-        Factor Models](https://arxiv.org/abs/2409.11525) for going beyond the classical methods
-        * Large language model integration for factor model interpretation
-        * Multiple tabs available for diagnostics, deep dives, and comparisons
-        
+        perform factor rotations. It comes with the following key features:
+        """)
+        col_1, col_2 = st.columns([2, 1])
+        with col_1:
+            st.space("medium")
+            st.markdown("""
+            * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., 
+            correlation heatmap) for **core exploratory factor analysis**
+            * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for 
+            Factor Models](https://arxiv.org/abs/2409.11525) for going **beyond the classical methods**
+            * **Large language model integration** for factor model interpretation
+            * Multiple tabs available for **diagnostics, deep dives, and comparisons**
+            """)
+        with col_2:
+            st_lottie(load_lottie_file("./lotties/rotation.json"),
+                      speed=2, reverse=False, loop=True, quality="low", height=275, key="rotation_lottie")
+
+        st.markdown("""              
         Using this tool, practitioners can easily perform exploratory factor analysis and even leverage semantic or 
-        arbitrary information for analyzing factor models.
+        arbitrary information for analyzing factor models. **Interact with the sample visualization above to see how 
+        the plot changes depending on how interpretable the factor model is!**
         """)
         col_1, col_2, col_3 = st.columns([1, 5, 1])
         with col_2:
@@ -1447,8 +1480,6 @@ with tab_overview:
                 )
             )
             st.plotly_chart(fig_sample_v_plot, width="stretch", key="sample_v_plot")
-        st.write("Feel free to interact with the sample visualization above to see how the plot changes depending on "
-                 "how interpretable the factor model is!")
 
     with st.expander("Getting started", True, icon=":material/rocket_launch:"):
         st.markdown("""
@@ -1490,28 +1521,46 @@ with tab_overview:
         if getting_started_step == 0:
             st.markdown("""
             Upload your dataset in the *Dataset* section of the *Menu*. You can upload three kinds of files: 
-            * **The main dataset (CSV file)**. This is the tabular dataset on which the factor models will be fit. Each 
-            column must represent a feature and each observation must represent an observation. All data values must be 
-            numeric and there must be no missing values. This is **required** to fit a model. The CSV file or raw 
-            dataset **should not** have column headers. The tool will automatically label the columns as X1, X2, and 
-            so on.
-            * **The statements associated with the features (TXT file)**. This is the list of questions or statements 
-            associated with each feature in the main dataset. It must be a text file, where statements are separated by 
-            linebreaks - consecutive lines with one statement per line. The order of the statements must match the order 
-            of the columns in the main dataset (i.e., the first statement must correspond to the first feature). This 
-            is an **optional** input, and will be used only if you select "semantics" for the prior in pairwise target 
-            rotation.
-            * **The tags associated with each variable**. You can add tags to each variable or statement to help 
-            visualize interpretability. To do so, click *Tags* under *Dataset*. This is optional.
-            
-            **On Statements**. Ideally, statements should not be too long but they should also be "complete" (e.g., 
-            a full sentence). However, it is also possible to have just "regular" one or two-word variable names such 
-            as "height" and so on. In such cases though, semantic similarities may not be as meaningful.
-            
-            **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
-            variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
-            more tags, and tags do not have to be unique across variables.
             """)
+            upload_sub_tab_1, upload_sub_tab_2, upload_sub_tab_3 = st.tabs([
+                "A. Main dataset",
+                "B. Statements",
+                "C. Tags"
+            ])
+
+            with upload_sub_tab_1:
+                st.markdown("""
+                ###### The main dataset (CSV file). 
+                This is the tabular dataset on which the factor models will be fit. Each 
+                column must represent a feature and each observation must represent an observation. All data values 
+                must be numeric and there must be no missing values. This is **required** to fit a model. The CSV file 
+                or raw dataset **should not** have column headers. The tool will automatically label the columns as 
+                X1, X2, and so on.
+                """)
+            with upload_sub_tab_2:
+                st.markdown("""
+                ###### The statements associated with the features (TXT file).
+                This is the list of questions or statements associated with each feature in the main dataset. It must 
+                be a text file, where statements are separated by linebreaks - consecutive lines with one statement 
+                per line. The order of the statements must match the order of the columns in the main dataset (i.e., 
+                the first statement must correspond to the first feature). This is an **optional** input, and will be 
+                used only if you select "semantics" for the prior in pairwise target rotation.
+                
+                Ideally, statements should not be too long but they should also be "complete" (e.g., 
+                a full sentence). However, it is also possible to have just "regular" one or two-word variable names 
+                such as "height" and so on. In such cases though, semantic similarities may not be as meaningful.
+                """)
+            with upload_sub_tab_3:
+                st.markdown("""
+                ###### The tags associated with each variable (manual or CSV file). 
+                You can add tags to each variable or statement to help visualize interpretability. 
+                To do so, click *Tags* under *Dataset*. Then, either upload manually or an appropriate CSV file. 
+                This is optional.
+                
+                **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
+                variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
+                more tags, and tags do not have to be unique across variables.
+                """)
         elif getting_started_step == 1:
             st.markdown("""
             Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
@@ -1554,19 +1603,14 @@ with tab_overview:
         ###### Examples 
         * Sample datasets and files are available 
         [here](https://drive.google.com/drive/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X?usp=sharing).
-        * A video walkthrough of the tool is in the works.
         * Although classical rotations and traditional visualizations are made available, this tool was made partially
-        to make pairwise target rotation accessible. As such, you may want to read the 
-        [paper](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
+        to make pairwise target rotation accessible. As such, you may want to read the paper 
+        [here](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
 
         ###### Limitations and Future Releases
         * The tool currently does not support polychoric correlations. This will be added in the future.
-        * The Universal Sentence Encoder is the only embedding model supported right now.
-        
-        ###### Additional Information
-        * You can switch between Dark and Light modes by clicking the Settings icon at the top right of the page.
-        * The code repository for this tool can be found [here](https://github.com/jptuazon/factorflow).
-        * FactorFlow is made available under the GNU General Public License v3.0.
+        * The Universal Sentence Encoder is the only embedder available for the statements for now.
+        * A video walkthrough of the tool is in the works.
         """)
 
 with tab_diagnostics:
