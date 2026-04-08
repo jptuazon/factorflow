@@ -18,16 +18,16 @@ FactorFlow (a Streamlit app) can be accessed here: [https://factorflow-efa.strea
     <td><img src="./images/demo_2.jpeg" width="500"></td>
   </tr>
   <tr>
-    <td><img src="./images/demo_7.jpeg" width="500"></td>
-    <td><img src="./images/demo_8.jpeg" width="500"></td>
+    <td><img src="./images/demo_3.jpeg" width="500"></td>
+    <td><img src="./images/demo_4.jpeg" width="500"></td>
   </tr>
   <tr>
     <td><img src="./images/demo_5.jpeg" width="500"></td>
     <td><img src="./images/demo_6.jpeg" width="500"></td>
   </tr>
   <tr>
-    <td><img src="./images/demo_3.jpeg" width="500"></td>
-    <td><img src="./images/demo_4.jpeg" width="500"></td>
+    <td><img src="./images/demo_7.jpeg" width="500"></td>
+    <td><img src="./images/demo_8.jpeg" width="500"></td>
   </tr>
   <tr>
     <td><img src="./images/demo_9.jpeg" width="500"></td>
