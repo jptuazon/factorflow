@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.3.3
+# FactorFlow V2.3.4
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -397,7 +397,7 @@ def interpret_factor_model(df_discretized_loadings):
 # Page configuration
 st.set_page_config(
     page_title="FactorFlow",
-    page_icon=":bar_chart:",
+    page_icon="./images/ff_icon_32.png",
     layout="wide",
     initial_sidebar_state="auto"
 )
@@ -1406,7 +1406,7 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
 with st.sidebar:
     st.title(":material/info: About")
     st.markdown("""
-    * Version Number: 2.3.3
+    * Version Number: 2.3.4
     * Developer: Justin Tuazon
         * [:material/mail: jstuazon@alum.up.edu.ph](jstuazon@alum.up.edu.ph)
         * [:material/link_2: LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/)
