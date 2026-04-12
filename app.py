@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V2.3.4
+# FactorFlow V3.0.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -20,16 +20,42 @@ import time
 from itertools import product, combinations
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import plotly.express as px
 import streamlit as st
 from groq import Groq
-from factor_model_trainer import InterpretableFA
+from factor_model_trainer import InterpretableFA, get_chi_sq, get_df
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
 from streamlit_extras.floating_button import floating_button
 from streamlit_extras.scroll_to_element import scroll_to_element
 from streamlit_lottie import st_lottie
+from streamlit_extras.avatar import avatar
+
+# App constants
+VERSION_NUMBER = "3.0.0"
+ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
+OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
+ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
+ESTIMATION_METHODS = {
+    "Minimum Residual": "minres",
+    "Maximum Likelihood": "ml",
+    "Principal Axis Factoring": "principal"
+}
+COLOR_DISCRETE_SCALES = {
+    k: v for k, v in px.colors.qualitative.__dict__.items()
+    if isinstance(v, list) and not k.startswith("_")
+}
+COLOR_CONTINUOUS_DIVERGING_SCALES = {
+    k: v for k, v in px.colors.diverging.__dict__.items()
+    if isinstance(v, list) and not k.startswith("_")
+}
+COLOR_CONTINUOUS_SEQUENTIAL_SCALES = {
+    k: v for k, v in px.colors.sequential.__dict__.items()
+    if isinstance(v, list) and not k.startswith("_")
+}
+
 
 # Universal sentence encoder set up
 def load_use_model():
@@ -138,6 +164,9 @@ if "model_name" not in st.session_state:
 if "number_of_factors" not in st.session_state:
     st.session_state.number_of_factors = None
 
+if "estimation_method" not in st.session_state:
+    st.session_state.estimation_method = None
+
 if "rotation" not in st.session_state:
     st.session_state.rotation = None
 
@@ -170,6 +199,8 @@ def fit_factor_model():
         with st.spinner("Fitting the factor model...", width="stretch", show_time=True):
             model_name = str(st.session_state.model_name)
             number_of_factors = int(st.session_state.number_of_factors)
+            estimation_method_key = st.session_state.estimation_method
+            estimation_method = ESTIMATION_METHODS[estimation_method_key]
             rotation = None if st.session_state.rotation == "None" else str(st.session_state.rotation).lower()
             prior_matrix = st.session_state.prior_matrix
             manifest_vars = st.session_state.manifest_vars
@@ -186,15 +217,17 @@ def fit_factor_model():
             )
 
             st.session_state.FACTOR_MODELS[model_name].fit_factor_model(
-                model_name,
-                number_of_factors,
-                rotation,
-                prior_matrix,
+                model_name=model_name,
+                n_factors=number_of_factors,
+                method=estimation_method,
+                rotation=rotation,
+                prior=prior_matrix,
                 rotation_kwargs=rot_kwargs
             )
 
             st.session_state.FIT_DETAILS[model_name] = {
                 "number_of_factors": number_of_factors,
+                "estimation_method": estimation_method_key,
                 "rotation": rotation,
                 "prior": st.session_state.prior,
                 "manifest_vars": manifest_vars
@@ -204,6 +237,7 @@ def fit_factor_model():
 
         st.session_state.model_name = None
         st.session_state.number_of_factors = None
+        st.session_state.estimation_method = None
         st.session_state.rotation = None
         st.session_state.prior_matrix = None
         st.session_state.FIT_MODEL = "No"
@@ -402,11 +436,6 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# App constants
-ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
-OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
-ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
-
 
 # App functions
 def load_lottie_file(path):
@@ -457,6 +486,14 @@ def hex_to_rgba(hex_color, opacity):
     rgb = tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
     return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
+
+
+def rgb_to_hex(rgb_color):
+    rgb_color = rgb_color.strip()
+    rgb_color = rgb_color.replace("rgb(", "").replace(")", "")
+    r, g, b = map(int, rgb_color.split(","))
+
+    return "#{:02x}{:02x}{:02x}".format(r, g, b)
 
 
 def compute_tags_breakdown(df_loadings):
@@ -792,7 +829,7 @@ def view_data_dialog():
             corr_mat,
             text_auto="0.3f",
             aspect="auto",
-            color_continuous_scale="RdBu",
+            color_continuous_scale=continuous_diverging_color_palette,
             zmin=-1, zmax=1,
             title="Sample Correlation Matrix"
         )
@@ -816,7 +853,7 @@ def view_data_dialog():
                     semantic_similarity_mat,
                     text_auto="0.3f",
                     aspect="auto",
-                    color_continuous_scale="Blues",
+                    color_continuous_scale=continuous_sequential_color_palette,
                     zmin=0, zmax=1,
                     title="Semantic Similarity Matrix"
                 )
@@ -836,14 +873,14 @@ def view_data_dialog():
 def fit_model_dialog():
     model_name = None
     number_of_factors = None
+    estimation_method = None
     rotation = None
     prior = None
     prior_matrix = None
     manifest_vars = None
 
     st.badge("""
-    :material/info: For the model name, it is recommended to follow this format: 
-    [rotation]\\_[number of factors]\\_[prior matrix description] (e.g., "priorimax_3_semantics", "varimax_5_custom").
+    :material/info: For the model name, it is recommended to be descriptive (e.g., "minres_varimax_4").
     """, color="blue")
 
     can_proceed = True
@@ -857,19 +894,33 @@ def fit_model_dialog():
                                             value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
                                             help="The number of factors cannot exceed the number of manifest "
                                                  "variables.", width="stretch", key="num_fac_input")
+        factor_count_warning = st.empty()
+
     manifest_vars = st.multiselect(
         "Manifest variables",
         options=[f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
         help="Only these manifest variables will be considered in the factor model.",
         key="manifest_fit"
     )
-    col_1, col_2 = st.columns(2)
+
+    if len(manifest_vars) >= 2 and get_df(len(manifest_vars), number_of_factors) < 0:
+        factor_count_warning.warning("""
+        Note that the number of manifest variables is too large. The degrees of freedom is negative.
+        """)
+
+    col_1, col_2, col_3 = st.columns(3)
     with col_1:
+        estimation_method = st.selectbox(
+            label="Estimation method", placeholder="Select an estimation method...",
+            key="estimation_method_fit", options=sorted(list(ESTIMATION_METHODS.keys())),
+            index=sorted(list(ESTIMATION_METHODS.keys())).index("Minimum Residual")
+        )
+    with col_2:
         rotation = st.selectbox(label="Rotation", placeholder="Select a rotation method...", key="rotation_fit",
                                 options=ROTATIONS, help="Priorimax, Varimax, Oblimax, Quartimax, and Equamax are "
                                                         "orthogonal rotations. Promax, Oblimin, and Quartimin are "
                                                         "oblique rotations.", width="stretch")
-    with col_2:
+    with col_3:
         prior = st.selectbox(label="Prior matrix", placeholder="Specify the prior matrix for priorimax...",
                              options=("Semantics", "Grouped", "Custom", "None"), key="prior_fit",
                              help="""
@@ -895,7 +946,7 @@ def fit_model_dialog():
                         semantic_similarity_mat,
                         text_auto="0.3f",
                         aspect="auto",
-                        color_continuous_scale="Blues",
+                        color_continuous_scale=continuous_sequential_color_palette,
                         zmin=0, zmax=1
                     )
                     fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -948,7 +999,7 @@ def fit_model_dialog():
                         prior_matrix,
                         text_auto="0",
                         aspect="auto",
-                        color_continuous_scale="Blues",
+                        color_continuous_scale=continuous_sequential_color_palette,
                         zmin=0, zmax=1
                     )
                     fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -973,7 +1024,7 @@ def fit_model_dialog():
                             prior_matrix,
                             text_auto="0.3f",
                             aspect="auto",
-                            color_continuous_scale="Blues",
+                            color_continuous_scale=continuous_sequential_color_palette,
                             zmin=0, zmax=1
                         )
                         fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -1029,6 +1080,10 @@ def fit_model_dialog():
                              "manifest variables.", duration="long")
                     any_failed = True
 
+                if estimation_method not in ESTIMATION_METHODS:
+                    st.toast("🚫 Please enter a valid estimation method.", duration="long")
+                    any_failed = True
+
                 if rotation not in ROTATIONS:
                     st.toast("🚫 Please enter a valid rotation method.", duration="long")
                     any_failed = True
@@ -1055,6 +1110,7 @@ def fit_model_dialog():
                 if not any_failed:
                     st.session_state.model_name = model_name
                     st.session_state.number_of_factors = number_of_factors
+                    st.session_state.estimation_method = estimation_method
                     st.session_state.rotation = rotation
                     st.session_state.prior_matrix = prior_matrix
                     st.session_state.prior = prior
@@ -1088,7 +1144,7 @@ def view_models_dialog():
         factor_model = st.session_state.FACTOR_MODELS[model_name].models[model_name]
         fit_details = st.session_state.FIT_DETAILS[model_name]
 
-        col_1, col_2, col_3, col_4, col_5 = st.columns(5)
+        col_1, col_2, col_3 = st.columns(3)
         with col_1:
             st.caption("Number of manifest variables")
             st.badge(str(len(fit_details["manifest_vars"])), color="green")
@@ -1096,12 +1152,17 @@ def view_models_dialog():
             st.caption("Number of factors")
             st.badge(str(fit_details["number_of_factors"]), color="green")
         with col_3:
+            st.caption("Estimation method")
+            st.badge(str(fit_details["estimation_method"]), color="green")
+
+        col_1, col_2, col_3 = st.columns(3)
+        with col_1:
             st.caption("Rotation")
             st.badge(str(fit_details["rotation"]).capitalize(), color="green")
-        with col_4:
+        with col_2:
             st.caption("Prior type")
             st.badge(str(fit_details["prior"]), color="green")
-        with col_5:
+        with col_3:
             st.caption("V-index")
             v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
             v = np.round(v, 5) if v is not None else None
@@ -1118,7 +1179,7 @@ def view_models_dialog():
                     df_prior_matrix,
                     text_auto="0.3f",
                     aspect="auto",
-                    color_continuous_scale="Blues",
+                    color_continuous_scale=continuous_sequential_color_palette,
                     zmin=0, zmax=1
                 )
                 fig_prior.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -1154,10 +1215,11 @@ def view_models_dialog():
             ]
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
-            cmap="RdBu", axis=None, subset=[col for col in model_analysis.columns if col.startswith("factor_")],
+            cmap=continuous_diverging_color_palette, axis=None, subset=[col for col in model_analysis.columns
+                                                                        if col.startswith("factor_")],
             vmin=-1.0, vmax=1.0
         ).background_gradient(
-            cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+            cmap=continuous_sequential_color_palette, axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
         )
 
         st.caption("Means, correlations, communalities, and sampling adequacies")
@@ -1169,7 +1231,7 @@ def view_models_dialog():
                 model_analysis,
                 text_auto="0.3f",
                 aspect="auto",
-                color_continuous_scale="RdBu",
+                color_continuous_scale=continuous_diverging_color_palette,
                 color_continuous_midpoint=0,
                 labels=dict(x="Factors", y="Variables", color="Standardized loading"),
                 title="Factor Loading Matrix (Standardized)"
@@ -1194,7 +1256,8 @@ def view_models_dialog():
             color="Factor",
             marginal="box",
             barmode="overlay",
-            opacity=0.8
+            opacity=0.8,
+            color_discrete_sequence=discrete_colors
         )
         st.caption("Factor score distribution")
         st.plotly_chart(fig_scores_hist, width="stretch", key="view_factor_scores_view_model")
@@ -1217,7 +1280,7 @@ def view_models_dialog():
             df_factor_corr_mat,
             text_auto="0.3f",
             aspect="auto",
-            color_continuous_scale="RdBu",
+            color_continuous_scale=continuous_diverging_color_palette,
             zmin=-1, zmax=1,
         )
         fig_factor_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
@@ -1236,41 +1299,67 @@ def view_models_dialog():
 st.markdown("""
     <style>
         .st-key-load_use_model iframe, .st-key-get_embeddings iframe {
-            height: 0px;
+            height: 0px !important;
             background-color: rgba(0,0,0,0) !important;
         }
         
         div:has(> iframe[title="streamlit_lottie.streamlit_lottie"]) {
             overflow: hidden !important;
-            margin: auto;
+            margin: auto !important;
         }
     
         .st-key-rotation_lottie iframe {
             transform: scale(1) !important;
-            transform-origin: center center;
+            transform-origin: center center !important;
             
+        }
+        
+        footer {
+            display: none !important;
+        }
+        
+        a[href="https://streamlit.io/cloud"] {
+            display: none !important;
+        }
+        
+        a[href="https://share.streamlit.io/user/jptuazon"] {
+            display: none !important;
+        }
+        
+        .custom-footer {
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: #FFFFFF;
+            color: #7B8284;
+            text-align: right;
+            padding: 7px 30px 7px 30px;
+            font-size: 11px;
+            z-index: 999990;
         }
     </style>
 """, unsafe_allow_html=True)
 
-col_1, col_2, col_3 = st.columns([1, 3, 1])
+_, col_2, _ = st.columns([1, 3, 1])
 with col_2:
     st.image("./images/factor_flow_logo.png", width="stretch")
     with st.container(horizontal_alignment="center"):
         with st.spinner("Loading NLP models...", show_time=True):
             while st.session_state.USE_MODEL_LOADED != 1:
                 time.sleep(0.1)
+_, col_2, _ = st.columns([1, 6, 1])
+with col_2:
+    st.markdown(
+        "<h3 style='text-align: center;'>An LLM-enhanced Visual Workbench for Exploratory Factor Analysis</h3>",
+        unsafe_allow_html=True
+    )
+    st.space()
 
 st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
-with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
-    st.subheader("FactorFlow: An LLM-enhanced Visual Workbench for Exploratory Factor Analysis")
-st.markdown("Developed by [Justin Philip Tuazon](https://www.linkedin.com/in/justin-philip-tuazon/)")
 
 # Sidebar
 st.sidebar.title(":material/menu: Menu")
-
-with st.sidebar:
-    show_floating_top = st.checkbox("""Show "Back to Top" button""", key="show_back_to_top", value=True)
 
 with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True):
     st.subheader("Universal Sentence Encoder")
@@ -1333,7 +1422,7 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
         col_1, col_2, col_3 = st.columns([1, 5, 1])
         with col_2:
             st.button("Upload", width="stretch", disabled=(st.session_state.USE_MODEL_LOADED != 1),
-                      on_click=upload_data_dialog, key="upload_data_btn")
+                      on_click=upload_data_dialog, key="upload_data_btn", type="primary")
     else:
         st.subheader("Dataset")
         st.text_input("Dataset", value=str(st.session_state.DATA_NAME),
@@ -1403,25 +1492,152 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
             st.caption(model_name)
             st.write(description)
 
-with st.sidebar:
-    st.title(":material/info: About")
-    st.markdown("""
-    * Version Number: 2.3.4
-    * Developer: Justin Tuazon
-        * [:material/mail: jstuazon@alum.up.edu.ph](jstuazon@alum.up.edu.ph)
-        * [:material/link_2: LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/)
-    * Adviser: Joemari Olea
-    * Repository: [:material/folder_code: GitHub](https://github.com/jptuazon/factorflow)
-    * License: [:material/license: GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)
-    
-    Copyright :material/copyright: 2026 Justin Philip Tuazon
-    """)
+with st.sidebar.expander("Settings", True, icon=":material/settings:"):
+    st.caption("General")
+    show_floating_top = st.checkbox("""Show "Back to Top" button""", key="show_back_to_top", value=True)
+    if st.button("Reload app", type="secondary", width="stretch"):
+        st.markdown(
+            """
+            <meta http-equiv="refresh" content="0">
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.space()
+
+    st.caption("Visualization colors")
+    discrete_color_palette = st.selectbox("Discrete color palette",
+                                          options=sorted(COLOR_DISCRETE_SCALES.keys()),
+                                          index=list(sorted(COLOR_DISCRETE_SCALES.keys())).index("Plotly"),
+                                          help="""
+                                          This is the color palette that will be used for discrete labels. The default 
+                                          is "Plotly". A typical colorblind-safe palette is "Safe".
+                                          """)
+    discrete_colors = COLOR_DISCRETE_SCALES[discrete_color_palette]
+    fig_discrete_colors = px.imshow(
+        [list(range(len(discrete_colors)))],
+        color_continuous_scale=discrete_colors,
+        aspect="auto"
+    )
+    fig_discrete_colors.update_layout(
+        height=20,
+        margin=dict(l=0, r=0, t=0, b=0),
+        coloraxis_showscale=False,
+        xaxis=dict(
+            visible=False,
+            showgrid=False,
+            zeroline=False
+        ),
+        yaxis=dict(
+            visible=False,
+            showgrid=False,
+            zeroline=False
+        )
+    )
+    st.plotly_chart(
+        fig_discrete_colors,
+        width="stretch",
+        config={
+            "staticPlot": True,
+            "displayModeBar": False
+        }
+    )
+
+    continuous_diverging_color_palette = st.selectbox(
+        "Continuous diverging color palette",
+        options=sorted(COLOR_CONTINUOUS_DIVERGING_SCALES.keys()),
+        index=list(sorted(COLOR_CONTINUOUS_DIVERGING_SCALES.keys())).index("RdBu"),
+        help="""
+        This is the primary color palette that will be used for diverging continuous values (e.g., heatmaps). 
+        The default is "RdBu". A typical colorblind-safe palette is "PuOr".
+        """
+    )
+    continuous_diverging_colors = COLOR_CONTINUOUS_DIVERGING_SCALES[continuous_diverging_color_palette]
+    fig_diverging_colors = px.imshow(
+        [list(range(256))],
+        color_continuous_scale=continuous_diverging_colors,
+        aspect="auto"
+    )
+    fig_diverging_colors.update_layout(
+        height=20,
+        margin=dict(l=0, r=0, t=0, b=0),
+        coloraxis_showscale=False,
+        xaxis=dict(
+            visible=False,
+            showgrid=False,
+            zeroline=False
+        ),
+        yaxis=dict(
+            visible=False,
+            showgrid=False,
+            zeroline=False
+        )
+    )
+    st.plotly_chart(
+        fig_diverging_colors,
+        width="stretch",
+        config={
+            "staticPlot": True,
+            "displayModeBar": False
+        }
+    )
+
+    sequential_choices = (
+        set(COLOR_CONTINUOUS_SEQUENTIAL_SCALES.keys()) & set(plt.colormaps())
+    )
+    continuous_sequential_color_palette = st.selectbox(
+        "Continuous sequential color palette",
+        options=sorted(sequential_choices),
+        index=sorted(list(sequential_choices)).index("Blues"),
+        help="""
+        This is the primary color palette that will be used for diverging continuous values (e.g., heatmaps). 
+        The default is "Blues"". A typical colorblind-safe palette is "Viridis".
+        """
+    )
+    continuous_sequential_colors = COLOR_CONTINUOUS_SEQUENTIAL_SCALES[continuous_sequential_color_palette]
+    fig_sequential_colors = px.imshow(
+        [list(range(256))],
+        color_continuous_scale=continuous_sequential_colors,
+        aspect="auto"
+    )
+    fig_sequential_colors.update_layout(
+        height=20,
+        margin=dict(l=0, r=0, t=0, b=0),
+        coloraxis_showscale=False,
+        xaxis=dict(
+            visible=False,
+            showgrid=False,
+            zeroline=False
+        ),
+        yaxis=dict(
+            visible=False,
+            showgrid=False,
+            zeroline=False
+        )
+    )
+    st.plotly_chart(
+        fig_sequential_colors,
+        width="stretch",
+        config={
+            "staticPlot": True,
+            "displayModeBar": False
+        }
+    )
+
+    st.space()
+
+    st.caption("Chart axes and grid lines")
+    show_x_line = not st.checkbox("Hide x-axis line", key="show_row_line", value=True)
+    show_y_line = not st.checkbox("Hide y-axis line line", key="show_col_line", value=True)
+    show_y_grid = not st.checkbox("Hide horizontal grid lines", key="show_row_grid", value=True)
+    show_x_grid = not st.checkbox("Hide vertical grid lines", key="show_col_grid", value=True)
 
 # Body
-tab_overview, tab_diagnostics, tab_dashboard = st.tabs([
+tab_overview, tab_diagnostics, tab_dashboard, tab_about = st.tabs([
     ":material/home: Overview",
     ":material/data_thresholding: Diagnostics",
-    ":material/dashboard: Dashboard"
+    ":material/dashboard: Dashboard",
+    ":material/page_info: About"
 ])
 
 with tab_overview:
@@ -1460,7 +1676,8 @@ with tab_overview:
                 y="Loading",
                 animation_frame="Quality",
                 animation_group="Group",
-                trendline="lowess"
+                trendline="lowess",
+                color_discrete_sequence=discrete_colors
             )
             fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 2000
             fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 1000
@@ -1474,8 +1691,15 @@ with tab_overview:
                 yaxis=dict(
                     visible=True,
                     showticklabels=True,
-                    showline=False,
-                    showgrid=False,
+                    showline=show_y_line,
+                    showgrid=show_y_grid,
+                    zeroline=False
+                ),
+                xaxis=dict(
+                    visible=True,
+                    showticklabels=True,
+                    showline=show_x_line,
+                    showgrid=show_x_grid,
                     zeroline=False
                 )
             )
@@ -1489,36 +1713,47 @@ with tab_overview:
         getting_started_step = card_selector(
             [
                 dict(
+                    icon=":material/build:",
+                    title="1. Configure",
+                    description="Set your preferences."
+                ),
+                dict(
                     icon=":material/upload:",
-                    title="1. Upload",
+                    title="2. Upload",
                     description="Import your files.",
                 ),
                 dict(
                     icon=":material/feature_search:",
-                    title="2. Explore",
+                    title="3. Explore",
                     description="Do some basic stats and diagnostics.",
                 ),
                 dict(
                     icon=":material/model_training:",
-                    title="3. Fit",
+                    title="4. Fit",
                     description="Estimate factor models.",
                 ),
                 dict(
                     icon=":material/stacked_bar_chart:",
-                    title="4. Analyze",
+                    title="5 Analyze",
                     description="Examine your models.",
                 ),
                 dict(
                     icon=":material/export_notes:",
-                    title="5. Export",
+                    title="6. Export",
                     description="Download the results.",
                 )
             ],
-            default=0,
+            default=1,
             key="how_to_guide"
         )
 
         if getting_started_step == 0:
+            st.markdown("""
+            In the *Settings* panel under *Menu*, you can configure various settings for the tool, such as 
+            the chart syles and colors. You can also click "Reload app" if you want to reset everything to default 
+            and clear all app data.
+            """)
+        elif getting_started_step == 1:
             st.markdown("""
             Upload your dataset in the *Dataset* section of the *Menu*. You can upload three kinds of files: 
             """)
@@ -1559,16 +1794,17 @@ with tab_overview:
                 
                 **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
                 variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
-                more tags, and tags do not have to be unique across variables.
+                more tags, and tags do not have to be unique across variables. Tags can be thought of as your 
+                "initial" labels for the manifest variables.
                 """)
-        elif getting_started_step == 1:
+        elif getting_started_step == 2:
             st.markdown("""
             Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
             communalities or you might want to determine the optimal number of factors. There is also an interactive 
             visualizer available if you want to manually explore the raw dataset yourself. Otherwise, you can go to 
             *Basic stats* under *Dataset* in the menu to see some readily available summary statistics.
             """)
-        elif getting_started_step == 2:
+        elif getting_started_step == 3:
             st.markdown("""
             Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
             dataset. You can add or remove as many factor models as you need to. You can click the model name in order 
@@ -1581,14 +1817,14 @@ with tab_overview:
             variable prior to fitting. This means that the loadings provided are standardized loadings (i.e., 
             **correlations** with the factors).
             """)
-        elif getting_started_step == 3:
+        elif getting_started_step == 4:
             st.markdown("""
             Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
             choose to display only one model to focus on a single factor model but you can also display 2 factor 
             models at the same time for comparisons. If you want to view one factor model at a time in detail instead, 
             you can go to *View* under *Factor Models*.
             """)
-        elif getting_started_step == 4:
+        elif getting_started_step == 5:
             st.markdown("""
             You can **download** most tables, figures, and visualizations in this tool:
             * For tables, hovering on them triggers a download button to show at the top right of the table.
@@ -1598,7 +1834,7 @@ with tab_overview:
             click "Save image as..." or "Copy image".
             """)
 
-    with st.expander("Notes", True, icon=":material/pinboard:"):
+    with st.expander("Notes", True, icon=":material/pinboard:", key="notes_expander"):
         st.markdown("""
         ###### Examples 
         * Sample datasets and files are available 
@@ -1657,8 +1893,58 @@ with tab_diagnostics:
             model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
             model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
             model_analysis_styled = model_analysis_styled.style.background_gradient(
-                cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+                cmap=continuous_sequential_color_palette, axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
             )
+
+            with st.expander("Goodness-of-fit"):
+                chisq_null, _ = get_chi_sq(ifa.models["model"], data_subset.shape[0], True)
+                chisq_model, p_val = get_chi_sq(ifa.models["model"], data_subset.shape[0])
+                df_null = get_df(data_subset.shape[1], 0)
+                df_model = get_df(data_subset.shape[1], number_of_factors)
+
+                if df_model < 0:
+                    st.error(f"The number of factors is too large, with computed degrees of "
+                             f"freedom {np.round(df_model, 4)}.")
+                else:
+                    st.badge(":material/info: Note that the p-value is applicable only when "
+                             "maximum likelihood estimation is used.",
+                             color="blue")
+
+                    if pd.isna(chisq_model):
+                        chisq_model = "Not Applicable"
+                        cfi = "Not Applicable"
+                        tli = "Not Applicable"
+                        rmsea = "Not Applicable"
+                    else:
+                        cfi = 1 - (chisq_model - df_model) / (chisq_null - df_null)
+                        tli = (chisq_null / df_null - chisq_model / df_model) / (chisq_null / df_null - 1)
+                        rmsea = np.sqrt(max(chisq_model - df_model, 0) / (df_model * (data_subset.shape[0] - 1)))
+
+                        cfi = str(np.round(cfi, 4)) if not pd.isna(cfi) else "Not Applicable"
+                        tli = str(np.round(tli, 4)) if not pd.isna(tli) else "Not Applicable"
+                        rmsea = str(np.round(rmsea, 4)) if not pd.isna(rmsea) else "Not Applicable"
+
+                        chisq_model = str(np.round(chisq_model, 4))
+                        p_val = str(np.round(p_val, 4))
+
+                    col_1, col_2, col_3 = st.columns(3)
+                    with col_1:
+                        st.caption("Chi-squared statistic")
+                        st.write(chisq_model)
+                    with col_2:
+                        st.caption("p-value")
+                        st.write(p_val)
+                    with col_3:
+                        st.caption("Comparative Fit Index")
+                        st.write(cfi)
+
+                    col_1, col_2, col_3 = st.columns(3)
+                    with col_1:
+                        st.caption("Tucker-Lewis Index")
+                        st.write(tli)
+                    with col_2:
+                        st.caption("Root Mean Square Error of Approximation")
+                        st.write(rmsea)
 
             with st.expander("Communalities and adequacies"):
                 st.dataframe(model_analysis_styled, key="styled_analysis_df")
@@ -1677,6 +1963,7 @@ with tab_diagnostics:
                     x="Factor",
                     y="Sum of Squared Loadings",
                     text="Sum of Squared Loadings",
+                    color_discrete_sequence=discrete_colors,
                     markers=True,
                     title="Eigenvalue per factor"
                 )
@@ -1684,8 +1971,15 @@ with tab_diagnostics:
                     yaxis=dict(
                         visible=True,
                         showticklabels=True,
-                        showline=False,
-                        showgrid=False,
+                        showline=show_y_line,
+                        showgrid=show_y_grid,
+                        zeroline=False
+                    ),
+                    xaxis=dict(
+                        visible=True,
+                        showticklabels=True,
+                        showline=show_x_line,
+                        showgrid=show_x_grid,
                         zeroline=False
                     )
                 )
@@ -1694,7 +1988,8 @@ with tab_diagnostics:
                     texttemplate="%{text:.3f}",
                     textposition="top center"
                 )
-                fig_scree.add_hline(y=1, line_dash="dash", line_color="red", annotation_text="Kaiser Criterion",
+                fig_scree.add_hline(y=1, line_dash="dash", line_color=discrete_colors[1],
+                                    annotation_text="Kaiser Criterion",
                                     annotation_position="top left")
                 st.markdown(f"""
                 The total sum of eigenvalues is 
@@ -1710,7 +2005,7 @@ with tab_diagnostics:
                     corr_mat,
                     text_auto="0.2f",
                     aspect="auto",
-                    color_continuous_scale="RdBu",
+                    color_continuous_scale=continuous_diverging_color_palette,
                     zmin=-1, zmax=1,
                     title="Subsetted correlation matrix"
                 )
@@ -1777,15 +2072,48 @@ with tab_dashboard:
                     v = np.round(v, 5) if v is not None else None
                     col_3.metric("V-Index", str(v))
 
+                    st.space()
+
                     col_4, col_5, col_6 = st.columns(3)
                     with col_4:
+                        st.caption("ESTIMATION METHOD")
+                        st.write(str(fit_details["estimation_method"].capitalize()))
+                    with col_5:
                         st.caption("ROTATION")
                         st.write(str(fit_details["rotation"]).capitalize())
-                    with col_5:
+                    with col_6:
                         st.caption("PRIOR TYPE")
                         st.write(str(fit_details["prior"]))
 
                     st.space()
+
+                    if st.session_state.FACTOR_MODELS[model_name].models[model_name].is_orthogonal_:
+                        factor_corr_mat = np.eye(st.session_state.FIT_DETAILS[model_name]["number_of_factors"])
+                    else:
+                        factor_corr_mat = st.session_state.FACTOR_MODELS[model_name].models[model_name].phi_
+                    df_factor_corr_mat = pd.DataFrame(factor_corr_mat,
+                                                      columns=[f"factor_{idx + 1}" for idx in
+                                                               range(st.session_state.FIT_DETAILS[model_name]
+                                                                     ["number_of_factors"])],
+                                                      index=[f"factor_{idx + 1}" for idx in
+                                                             range(st.session_state.FIT_DETAILS[model_name]
+                                                                   ["number_of_factors"])])
+                    fig_factor_corr = px.imshow(
+                        df_factor_corr_mat,
+                        text_auto="0.3f",
+                        aspect="auto",
+                        color_continuous_scale=continuous_diverging_color_palette,
+                        zmin=-1, zmax=1,
+                    )
+                    fig_factor_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+                    fig_factor_corr.update_yaxes(tickmode="linear", dtick=1)
+                    fig_factor_corr.update_layout(
+                        margin=dict(t=0, b=0, r=0, l=0)
+                    )
+                    st.caption("FACTOR CORRELATIONS")
+                    st.plotly_chart(fig_factor_corr, width="stretch", key=f"{model_name}_factor_corr_dashboard")
+
+                    st.space("medium")
 
             # Communalities and adequacies
             cols = st.columns(len(selected_models), border=True)
@@ -1806,7 +2134,8 @@ with tab_dashboard:
                     comm_and_adeq.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
                     comm_and_adeq_styled = comm_and_adeq.reset_index(drop=True)
                     comm_and_adeq_styled = comm_and_adeq_styled.style.background_gradient(
-                        cmap="Purples", axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+                        cmap=continuous_sequential_color_palette, axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0,
+                        vmax=1.0
                     )
                     st.dataframe(comm_and_adeq_styled, hide_index=True, key=f"{model_name}_comm_and_adeq")
 
@@ -1841,6 +2170,7 @@ with tab_dashboard:
                                     x=similarity_type,
                                     y="Loading Similarity",
                                     trendline="lowess",
+                                    color_discrete_sequence=discrete_colors,
                                     title=f"{similarity_type} vs Loading Similarity",
                                     subtitle=f"V = "
                                              f"{st.session_state.FACTOR_MODELS[
@@ -1866,8 +2196,15 @@ with tab_dashboard:
                             yaxis=dict(
                                 visible=True,
                                 showticklabels=True,
-                                showline=False,
-                                showgrid=False,
+                                showline=show_y_line,
+                                showgrid=show_y_grid,
+                                zeroline=False
+                            ),
+                            xaxis=dict(
+                                visible=True,
+                                showticklabels=True,
+                                showline=show_x_line,
+                                showgrid=show_x_grid,
                                 zeroline=False
                             )
                         )
@@ -1897,6 +2234,7 @@ with tab_dashboard:
                         y="Sum of Squared Loadings",
                         text="Sum of Squared Loadings",
                         color="Tag",
+                        color_discrete_sequence=discrete_colors,
                         barmode="stack",
                         title="Sum of Squared Loadings per Factor"
                     )
@@ -1904,8 +2242,15 @@ with tab_dashboard:
                         yaxis=dict(
                             visible=True,
                             showticklabels=False,
-                            showline=False,
-                            showgrid=False,
+                            showline=show_y_line,
+                            showgrid=show_y_grid,
+                            zeroline=False
+                        ),
+                        xaxis=dict(
+                            visible=True,
+                            showticklabels=True,
+                            showline=show_x_line,
+                            showgrid=show_x_grid,
                             zeroline=False
                         )
                     )
@@ -2005,6 +2350,7 @@ with tab_dashboard:
                         factor_loadings_long,
                         x="value",
                         color="factor",
+                        color_discrete_sequence=discrete_colors,
                         title="Empirical Cumulative Distribution of Absolute Loadings",
                         lines=True,
                         marginal="box"
@@ -2012,7 +2358,21 @@ with tab_dashboard:
                     fig_cumul.update_layout(
                         xaxis_title="Absolute Loading",
                         yaxis_title="Cumulative Probability",
-                        legend_title_text="Factor"
+                        legend_title_text="Factor",
+                        yaxis=dict(
+                            visible=True,
+                            showticklabels=True,
+                            showline=show_y_line,
+                            showgrid=show_y_grid,
+                            zeroline=False
+                        ),
+                        xaxis=dict(
+                            visible=True,
+                            showticklabels=True,
+                            showline=show_x_line,
+                            showgrid=show_x_grid,
+                            zeroline=False
+                        )
                     )
                     fig_cumul.add_vline(
                         x=thresh,
@@ -2031,10 +2391,6 @@ with tab_dashboard:
                         line_color="gray",
                         row=2,
                         col=1
-                    )
-                    fig_cumul.update_yaxes(
-                        showgrid=False,
-                        zeroline=False
                     )
 
                     cumul_slot.plotly_chart(fig_cumul, width="stretch", key=f"{model_name}_cumul")
@@ -2057,7 +2413,8 @@ with tab_dashboard:
                         df_loadings,
                         text_auto="0.3f" if show_raw else "0",
                         aspect="auto",
-                        color_continuous_scale="RdBu" if show_raw else [(0, "#FFFFFF"), (1, "#0356A6")],
+                        color_continuous_scale=(continuous_diverging_color_palette
+                                                if show_raw else [(0, "#FFFFFF"), (1, "#08306B")]),
                         color_continuous_midpoint=0 if show_raw else 0.5,
                         labels=dict(x="Factors", y="Variables",
                                     color="Loading" if show_raw else "Included"),
@@ -2196,6 +2553,7 @@ with tab_dashboard:
                             x=x_var,
                             y="loading",
                             color=color_var,
+                            color_discrete_sequence=discrete_colors,
                             category_orders={
                                 "variable": sorted_variables,
                                 "factor": sorted_factors
@@ -2220,12 +2578,24 @@ with tab_dashboard:
 
                         fig_pseudo_parallel.update_yaxes(
                             title_text="Loading",
-                            showgrid=False,
-                            zeroline=False
                         )
 
                         fig_pseudo_parallel.update_layout(
-                            legend_title=color_var.capitalize()
+                            legend_title=color_var.capitalize(),
+                            yaxis=dict(
+                                visible=True,
+                                showticklabels=True,
+                                showline=show_y_line,
+                                showgrid=show_y_grid,
+                                zeroline=False
+                            ),
+                            xaxis=dict(
+                                visible=True,
+                                showticklabels=True,
+                                showline=show_x_line,
+                                showgrid=show_x_grid,
+                                zeroline=False
+                            )
                         )
                     else:
                         if len(sorted_factors if color_var == "factor" else sorted_variables) == 1:
@@ -2241,6 +2611,7 @@ with tab_dashboard:
                             facet_row=color_var,
                             height=max(350, 200 * len(sorted_factors if color_var == "factor" else sorted_variables)),
                             color=color_var,
+                            color_discrete_sequence=discrete_colors,
                             category_orders={
                                 "variable": sorted_variables,
                                 "factor": sorted_factors
@@ -2261,16 +2632,28 @@ with tab_dashboard:
                         )
                         fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
                                                          if x_var == "variable" else "Latent Factor", row=1, col=1,
-                                                         side="bottom")
+                                                         side="bottom",
+                                                         visible=True,
+                                                         showticklabels=True,
+                                                         showline=show_x_line,
+                                                         showgrid=show_x_grid,
+                                                         zeroline=False)
                         fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
                                                          if x_var == "variable" else "Latent Factor",
                                                          row=len(sorted_factors if color_var == "factor"
                                                                  else sorted_variables), col=1, side="top",
-                                                         showticklabels=True)
+                                                         visible=True,
+                                                         showticklabels=True,
+                                                         showline=show_x_line,
+                                                         showgrid=show_x_grid,
+                                                         zeroline=False)
 
                         fig_pseudo_parallel.update_yaxes(
                             title_text="Loading",
-                            showgrid=False,
+                            visible=True,
+                            showticklabels=True,
+                            showline=show_y_line,
+                            showgrid=show_y_grid,
                             zeroline=False
                         )
 
@@ -2381,7 +2764,7 @@ with tab_dashboard:
                         if st.session_state is not None:
                             title = st.session_state.STATEMENTS_DF[
                                 st.session_state.STATEMENTS_DF["Variable"] == mv
-                                ]["Statement"].item()
+                            ]["Statement"].item()
                         else:
                             title = mv
                         nodes.append(
@@ -2415,7 +2798,8 @@ with tab_dashboard:
                     edges = []
                     for edge_id, factors in edge_registry.items():
                         colors = [
-                            px.colors.qualitative.Plotly[factor]
+                            rgb_to_hex(discrete_colors[factor])
+                            if "rgb" in discrete_colors[factor] else discrete_colors[factor]
                             for factor in factors
                         ]
                         final_color = get_mean_color(colors)
@@ -2489,6 +2873,80 @@ with tab_dashboard:
 
                     st.space()
 
+with tab_about:
+    st.markdown("##### :material/person_edit: Project Contributors")
+    col_1, col_2 = st.columns(2, border=True)
+    with col_1:
+        avatar(
+            "https://avatars.githubusercontent.com/u/142733277?v=4",
+            label="Justin Philip Tuazon",
+            height=64,
+            caption="Developer",
+            key="avatar_developer"
+        )
+        st.markdown("""
+        [:material/mail: jstuazon@up.edu.ph](jstuazon@up.edu.ph)
+        • [:material/link_2: LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/)
+        """)
+        st.caption("""
+        Justin works as a Data Scientist at a large bank. He is also an MS Computer Science student at University 
+        of the Philippines - Diliman and graduated *summa cum laude* from the same university with a BS Statistics 
+        degree.
+        
+        Currently, he is affiliated with the Computer Vision and Machine Intelligence Group of the Department of 
+        Computer Science at his university.
+        """)
+    with col_2:
+        avatar(
+            "https://media.licdn.com/dms/image/v2/D5603AQEXRcEbRZrKBA/profile-displayphoto-scale_400_400/"
+            "B56ZodwfbpIYAg-/0/1761435843192?e=1777507200&v=beta&t=FYwHtYmZsc_mmMsGGAjSumf2rUBRBlQfAOWOGDkZ6Go",
+            label="Joemari Olea",
+            height=64,
+            caption="Adviser",
+            key="avatar_adviser"
+        )
+        st.markdown("""
+        [:material/mail: jeolea1@up.edu.ph](jeolea1@up.edu.ph)
+        """)
+        st.caption("""
+        Joemari is an Assistant Professor at the School of Statistics in the University of the Philippines - 
+        Diliman. He holds both MS and BS degrees in Statistics from the same university.
+         
+        Currently, he is a doctoral student studying Educational Psychology (Quantitative Methods), specializing in 
+        Psychometrics, at the University of Texas at Austin.
+        """)
+
+    st.space()
+
+    st.markdown("##### :material/deployed_code: Release and Source")
+    col_1, col_2, col_3 = st.columns(3, border=True)
+    with col_1:
+        st.caption("Version Number")
+        st.write(VERSION_NUMBER)
+    with col_2:
+        st.caption("Repository")
+        st.markdown("[:material/folder_code: GitHub](https://github.com/jptuazon/factorflow)")
+    with col_3:
+        st.caption("License")
+        st.markdown("[:material/license: GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)")
+
+    st.space()
+
+    st.markdown("##### :material/crowdsource: Acknowledgements")
+    with st.container(border=True):
+        st.write("""
+          This project was initially developed as part of CS 242 (Data Visualization) under Dr. Richelle Juayong at 
+          the University of the Philippines - Diliman, whose helpful guidance and feedback are gratefully acknowledged.
+        """)
+
 if show_floating_top:
     if floating_button(":material/keyboard_double_arrow_up: Top"):
         scroll_to_element(f"app_title_{st.session_state.SCROLL_COUNTER}")
+
+footer = """
+<div class="custom-footer">
+    FactorFlow: An LLM-enhanced Visual Workbench for Exploratory Factor Analysis 
+    • Copyright © 2026 Justin Philip Tuazon
+</div>
+"""
+st.markdown(footer, unsafe_allow_html=True)
