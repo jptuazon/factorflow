@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.1.0
+# FactorFlow V3.2.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import streamlit as st
 from groq import Groq
-from factor_model_trainer import InterpretableFA, get_chi_sq, get_df
+from factor_model_trainer import InterpretableFA, get_chi_sq, get_df, polychoric
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
@@ -34,7 +34,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.1.0"
+VERSION_NUMBER = "3.2.0"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -119,31 +119,59 @@ def clear_embeddings():
 st.session_state.USE_MODEL_LOADED = load_use_model()
 
 # Session state
+# # State management for fitting factor models
+if "SHOW_FIT_DIALOG" not in st.session_state:
+    st.session_state.SHOW_FIT_DIALOG = False
+if "RUN_FIT" not in st.session_state:
+    st.session_state.RUN_FIT = False
+if "FIT_DONE" not in st.session_state:
+    st.session_state.FIT_DONE = False
+if "FIT_SUCCESS" not in st.session_state:
+    st.session_state.FIT_SUCCESS = False
+if "FIT_ERROR" not in st.session_state:
+    st.session_state.FIT_ERROR = ""
+if "FIT_MODEL" not in st.session_state:
+    st.session_state.FIT_MODEL = "No"
+
+# # State management for calculating polychoric correlations
+if "SHOW_POLY_DIALOG" not in st.session_state:
+    st.session_state.SHOW_POLY_DIALOG = False
+if "RUN_POLY" not in st.session_state:
+    st.session_state.RUN_POLY = False
+if "POLY_DONE" not in st.session_state:
+    st.session_state.POLY_DONE = False
+if "POLY_SUCCESS" not in st.session_state:
+    st.session_state.POLY_SUCCESS = False
+if "POLY_ERROR" not in st.session_state:
+    st.session_state.POLY_ERROR = ""
+if "CALCULATE_POLY_CORR" not in st.session_state:
+    st.session_state.CALCULATE_POLY_CORR = "No"
+
+# # State management for back to top button
 if "SCROLL_COUNTER" not in st.session_state:
     st.session_state.SCROLL_COUNTER = 0
 
+# # State management for dataset
 if "DATA" not in st.session_state:
     st.session_state.DATA = None
-
 if "DATA_NAME" not in st.session_state:
     st.session_state.DATA_NAME = None
-
 if "IS_LIKERT" not in st.session_state:
     st.session_state.IS_LIKERT = None
-
 if "LIKERT_DIRECTION" not in st.session_state:
     st.session_state.LIKERT_DIRECTION = None
-
 if "STATEMENTS" not in st.session_state:
     st.session_state.STATEMENTS = None
 if "STATEMENTS_DF" not in st.session_state:
     st.session_state.STATEMENTS_DF = None
+if "VARIABLE_TAGS" not in st.session_state:
+    st.session_state.VARIABLE_TAGS = {}
 
+# # State management for NLP
 if "EMBEDDINGS" not in st.session_state:
     st.session_state.EMBEDDINGS = None
 elif st.session_state.STATEMENTS is not None:
     st.session_state.EMBEDDINGS = get_embeddings(st.session_state.STATEMENTS)
-
 if "SEMANTIC_SIMILARITY_MATRIX" not in st.session_state:
     st.session_state.SEMANTIC_SIMILARITY_MATRIX = None
 elif st.session_state.DATA is not None and st.session_state.EMBEDDINGS is not None:
@@ -156,109 +184,229 @@ elif st.session_state.DATA is not None and st.session_state.EMBEDDINGS is not No
     semantic_similarity_mat.index = [f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])]
     st.session_state.SEMANTIC_SIMILARITY_MATRIX = semantic_similarity_mat
 
+# # State management for factor models
 if "FACTOR_MODELS" not in st.session_state:
     st.session_state.FACTOR_MODELS = {}
-
 if "FIT_DETAILS" not in st.session_state:
     st.session_state.FIT_DETAILS = {}
 
-if "FIT_MODEL" not in st.session_state:
-    st.session_state.FIT_MODEL = "No"
+# # State management for computed polychoric correlations
+if "LARGEST_POLY_CORR" not in st.session_state:
+    st.session_state.LARGEST_POLY_CORR = None
 
+# # State management for factor model fit parameters
 if "model_name" not in st.session_state:
     st.session_state.model_name = None
-
 if "number_of_factors" not in st.session_state:
     st.session_state.number_of_factors = None
-
+if "corr_type" not in st.session_state:
+    st.session_state.corr_type = None
 if "estimation_method" not in st.session_state:
     st.session_state.estimation_method = None
-
 if "rotation" not in st.session_state:
     st.session_state.rotation = None
-
 if "prior_matrix" not in st.session_state:
     st.session_state.prior_matrix = None
-
 if "prior" not in st.session_state:
     st.session_state.prior = None
-
 if "manifest_vars" not in st.session_state:
     st.session_state.manifest_vars = None
 
+# # State management for demo
 if "SAMPLE_V_DATA" not in st.session_state:
     st.session_state.SAMPLE_V_DATA = pd.read_csv("./sample_data/sample_v_data.csv")
 
+# # State management for interpretation
 if "CURRENT_LLM_MODEL_ID" not in st.session_state:
     st.session_state.CURRENT_LLM_MODEL_ID = None
-
 if "INTERPRETATIONS" not in st.session_state:
     st.session_state.INTERPRETATIONS = {}
 
-if "VARIABLE_TAGS" not in st.session_state:
-    st.session_state.VARIABLE_TAGS = {}
+
+# Delete factor model
+def delete_factor_model(model_name):
+    if model_name in st.session_state.FACTOR_MODELS:
+        del st.session_state.FACTOR_MODELS[model_name]
+    if model_name in st.session_state.FIT_DETAILS:
+        del st.session_state.FIT_DETAILS[model_name]
+    if model_name in st.session_state.INTERPRETATIONS:
+        del st.session_state.INTERPRETATIONS[model_name]
 
 
 # Fit factor model
+if st.session_state.FIT_MODEL == "Yes":
+    st.session_state.SHOW_FIT_DIALOG = True
+    st.session_state.RUN_FIT = True
+    st.session_state.FIT_MODEL = "No"
+
+
 @st.dialog("Fit a new model", dismissible=False)
 def fit_factor_model():
-    if st.session_state.FIT_MODEL == "Yes":
+    if st.session_state.RUN_FIT:
+        st.session_state.RUN_FIT = False
+
+        suceeded = True
+        error_msg = ""
+
         with st.spinner("Fitting the factor model...", width="stretch", show_time=True):
-            model_name = str(st.session_state.model_name)
-            number_of_factors = int(st.session_state.number_of_factors)
-            estimation_method_key = st.session_state.estimation_method
-            estimation_method = ESTIMATION_METHODS[estimation_method_key]
-            rotation = None if st.session_state.rotation == "None" else str(st.session_state.rotation).lower()
-            prior_matrix = st.session_state.prior_matrix
-            manifest_vars = st.session_state.manifest_vars
+            try:
+                model_name = str(st.session_state.model_name)
+                number_of_factors = int(st.session_state.number_of_factors)
+                corr_type = st.session_state.corr_type
+                estimation_method_key = st.session_state.estimation_method
+                estimation_method = ESTIMATION_METHODS[estimation_method_key]
+                rotation = None if st.session_state.rotation == "None" else str(st.session_state.rotation).lower()
+                prior_matrix = st.session_state.prior_matrix
+                manifest_vars = st.session_state.manifest_vars
 
-            if rotation == "equamax":
-                rot_kwargs = {
-                    "kappa": number_of_factors / (2 * len(manifest_vars))
+                if rotation == "equamax":
+                    rot_kwargs = {
+                        "kappa": number_of_factors / (2 * len(manifest_vars))
+                    }
+                else:
+                    rot_kwargs = None
+
+                if corr_type == "Pearson":
+                    st.session_state.FACTOR_MODELS[model_name] = InterpretableFA(
+                        st.session_state.DATA[manifest_vars]
+                    )
+                elif corr_type == "Polychoric":
+                    df_poly_corr_mat = st.session_state.LARGEST_POLY_CORR.loc[manifest_vars, manifest_vars]
+                    st.session_state.FACTOR_MODELS[model_name] = InterpretableFA(
+                        df_poly_corr_mat, True, st.session_state.DATA.shape[0]
+                    )
+
+                st.session_state.FACTOR_MODELS[model_name].fit_factor_model(
+                    model_name=model_name,
+                    n_factors=number_of_factors,
+                    method=estimation_method,
+                    rotation=rotation,
+                    prior=prior_matrix,
+                    rotation_kwargs=rot_kwargs
+                )
+
+                st.session_state.FIT_DETAILS[model_name] = {
+                    "number_of_factors": number_of_factors,
+                    "corr_type": corr_type,
+                    "estimation_method": estimation_method_key,
+                    "rotation": rotation,
+                    "prior": st.session_state.prior,
+                    "manifest_vars": manifest_vars
                 }
-            else:
-                rot_kwargs = None
 
-            st.session_state.FACTOR_MODELS[model_name] = InterpretableFA(
-                st.session_state.DATA[manifest_vars]
-            )
+                st.session_state.INTERPRETATIONS[model_name] = (None, "")
+            except Exception as e:
+                delete_factor_model(model_name)
+                suceeded = False
+                error_msg = str(e)
 
-            st.session_state.FACTOR_MODELS[model_name].fit_factor_model(
-                model_name=model_name,
-                n_factors=number_of_factors,
-                method=estimation_method,
-                rotation=rotation,
-                prior=prior_matrix,
-                rotation_kwargs=rot_kwargs
-            )
-
-            st.session_state.FIT_DETAILS[model_name] = {
-                "number_of_factors": number_of_factors,
-                "estimation_method": estimation_method_key,
-                "rotation": rotation,
-                "prior": st.session_state.prior,
-                "manifest_vars": manifest_vars
-            }
-
-            st.session_state.INTERPRETATIONS[model_name] = (None, "")
+        st.session_state.FIT_DONE = True
+        st.session_state.FIT_SUCCESS = suceeded
+        st.session_state.FIT_ERROR = error_msg
 
         st.session_state.model_name = None
         st.session_state.number_of_factors = None
+        st.session_state.corr_type = None
         st.session_state.estimation_method = None
         st.session_state.rotation = None
         st.session_state.prior_matrix = None
-        st.session_state.FIT_MODEL = "No"
 
-    st.success("Factor model created.")
+        if st.session_state.FIT_DONE:
+            if st.session_state.FIT_SUCCESS:
+                st.success("Successfully fit factor model.")
+            else:
+                st.error(f"""
+                Failed to fit factor model.
+
+                Error message: {st.session_state.FIT_ERROR}
+                """)
+
     st.space()
-    col_1, col_2 = st.columns([15, 3])
+    _, col_2 = st.columns([15, 3])
     with col_2:
         if st.button("Finish", width="stretch", key="finish_fit_btn"):
+            st.session_state.SHOW_FIT_DIALOG = False
+            st.session_state.FIT_DONE = False
             st.rerun()
 
 
-if st.session_state.FIT_MODEL == "Yes":
+if st.session_state.SHOW_FIT_DIALOG:
     fit_factor_model()
+
+
+# Calculate polychoric
+if st.session_state.CALCULATE_POLY_CORR == "Yes":
+    st.session_state.SHOW_POLY_DIALOG = True
+    st.session_state.CALCULATE_POLY_CORR = "No"
+
+
+@st.dialog(":material/calculate: Calculating polychoric correlations", width="medium", dismissible=False)
+def calculate_poly_corr():
+    if not st.session_state.get("POLY_DONE", False):
+        suceeded = True
+        error_msg = ""
+
+        try:
+            prog_txt = "Computing polychoric correlations..."
+            prog_bar = st.progress(0, text=prog_txt)
+
+            df_data = st.session_state.DATA
+            data_arr = df_data.to_numpy(dtype=int)
+
+            var_count = data_arr.shape[1]
+            poly_corr_mat = np.eye(var_count)
+            current_iter = 0
+            total_iter = (var_count * (var_count - 1)) // 2
+
+            for row in range(var_count):
+                for col in range(row):
+                    corr = polychoric(
+                        data_arr[:, row],
+                        data_arr[:, col]
+                    )
+                    poly_corr_mat[row, col] = corr
+                    poly_corr_mat[col, row] = corr
+
+                    current_iter += 1
+                    if current_iter == total_iter:
+                        prog_txt = "Done."
+                    prog_bar.progress(current_iter / total_iter, text=prog_txt)
+
+            st.session_state.LARGEST_POLY_CORR = pd.DataFrame(
+                poly_corr_mat,
+                columns=df_data.columns,
+                index=df_data.columns
+            )
+        except Exception as e:
+            suceeded = False
+            error_msg = str(e)
+
+        st.session_state.POLY_DONE = True
+        st.session_state.POLY_SUCCESS = suceeded
+        st.session_state.POLY_ERROR = error_msg
+
+    if st.session_state.POLY_DONE:
+        if st.session_state.POLY_SUCCESS:
+            st.success("Successfully computed polychoric correlations.")
+        else:
+            st.error(f"""
+            Failed to compute polychoric correlations.
+
+            Error message: {st.session_state.POLY_ERROR}
+            """)
+
+    st.space()
+    _, col_2 = st.columns([15, 3])
+    with col_2:
+        if st.button("Finish", width="stretch", key="finish_poly_btn"):
+            st.session_state.SHOW_POLY_DIALOG = False
+            st.session_state.POLY_DONE = False
+            st.rerun()
+
+
+if st.session_state.SHOW_POLY_DIALOG:
+    calculate_poly_corr()
+
 
 # LLM set up
 LLM_API_KEY = st.secrets["GROQ_API_KEY"]
@@ -684,10 +832,42 @@ def upload_data_dialog():
     statements = None
     statements_file_name = None
     use_statements = None
+    calc_poly_corr = None
 
     can_proceed = True
 
     st.space("xxsmall")
+    is_likert = st.selectbox(
+        "Is your data composed of Likert-type items?",
+        options=["Yes", "No"],
+        index=0
+    )
+    if is_likert == "Yes":
+        col_1, col_2 = st.columns(2)
+        with col_1:
+            likert_direction = st.radio(
+                "Direction of the scale?",
+                options=["Disagree-Agree", "Agree-Disagree"],
+                horizontal=True,
+                help="""
+                  "Disagree-Agree" means that larger numbers indicate stronger levels of agreement, such as 1 - 
+                  Strongly Disagree to 5 - Strongly Agree. "Agree-Disagree" refers to the opposite direction, 
+                  such as 1 - Very Satisfied to 5 - Very Dissatisfied.
+                  """
+            )
+        with col_2:
+            calc_poly_corr = st.radio(
+                "Calculate polychoric correlations?",
+                options=["Yes", "No"],
+                horizontal=True,
+                help="""
+                Calculating polychoric correlations takes additional time but will enable you to fit factor 
+                models with polychoric correlations, which are generally preferred.
+                """
+            )
+
+    st.divider()
+
     csv_data = st.file_uploader("Choose a CSV file for the main dataset:", type="csv")
     if csv_data is not None:
         df_data = pd.read_csv(csv_data, header=None)
@@ -723,28 +903,9 @@ def upload_data_dialog():
                     st.warning("Please upload the CSV file.")
                     can_proceed = False
 
-    if use_statements and can_proceed:
-        st.divider()
-        is_likert = st.selectbox(
-            "Is your data composed of Likert-type items?",
-            options=["Yes", "No"],
-            index=0
-        )
-        if is_likert == "Yes":
-            likert_direction = st.radio(
-                "What is the direction of the scale of the Likert-type items?",
-                options=["Disagree-Agree", "Agree-Disagree"],
-                horizontal=True,
-                help="""
-                  "Disagree-Agree" means that larger numbers indicate stronger levels of agreement, such as 1 - 
-                  Strongly Disagree to 5 - Strongly Agree. "Agree-Disagree" refers to the opposite direction, 
-                  such as 1 - Very Satisfied to 5 - Very Dissatisfied.
-                  """
-            )
-
     st.space()
     if can_proceed and (df_data is not None):
-        col_1, col_2 = st.columns([15, 3])
+        _, col_2 = st.columns([15, 3])
         with col_2:
             if st.button("Confirm", width="stretch", type="primary", key="confirm_data_btn"):
                 st.session_state.DATA = df_data
@@ -763,6 +924,15 @@ def upload_data_dialog():
                 st.session_state.VARIABLE_TAGS = {}
                 for idx in range(df_data.shape[1]):
                     st.session_state.VARIABLE_TAGS[f"X{idx + 1}"] = []
+
+                st.session_state.FACTOR_MODELS = {}
+                st.session_state.FIT_DETAILS = {}
+                st.session_state.INTERPRETATIONS = {}
+                st.session_state.VARIABLE_TAGS = {}
+                st.session_state.LARGEST_POLY_CORR = None
+
+                st.session_state.CALCULATE_POLY_CORR = calc_poly_corr
+
                 st.rerun()
 
 
@@ -787,7 +957,7 @@ def view_tags_dialog():
     can_proceed = True
 
     st.space()
-    col_1, col_2 = st.columns([6, 1])
+    _, col_2 = st.columns([6, 1])
     with col_2:
         if st.button("Clear all tags", width="stretch", key="clear_tags_btn"):
             st.session_state.VARIABLE_TAGS = {}
@@ -857,7 +1027,7 @@ def view_tags_dialog():
 
     if can_proceed:
         st.space()
-        col_1, col_2 = st.columns([6, 1])
+        _, col_2 = st.columns([6, 1])
         with col_2:
             if st.button("Confirm", width="stretch", key="confirm_tags_btn"):
                 if input_type == "Manual":
@@ -899,14 +1069,20 @@ def view_data_dialog():
         st.space()
 
     with st.expander("Correlation matrix"):
-        corr_mat = st.session_state.DATA.corr()
+        stats_corr_type = st.selectbox(
+            "Correlation type",
+            options=["Pearson", "Polychoric"] if st.session_state.LARGEST_POLY_CORR is not None else ["Pearson"],
+            index=0,
+            key="stats_corr_type"
+        )
+        corr_mat = st.session_state.DATA.corr() if stats_corr_type == "Pearson" else st.session_state.LARGEST_POLY_CORR
         fig_corr = px.imshow(
             corr_mat,
             text_auto="0.3f",
             aspect="auto",
             color_continuous_scale=continuous_diverging_color_palette,
             zmin=-1, zmax=1,
-            title="Sample Correlation Matrix"
+            title=f"Sample Correlation Matrix ({stats_corr_type})"
         )
         fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
         fig_corr.update_yaxes(tickmode="linear", dtick=1)
@@ -948,28 +1124,41 @@ def view_data_dialog():
 def fit_model_dialog():
     model_name = None
     number_of_factors = None
+    corr_type = None
     estimation_method = None
     rotation = None
     prior = None
     prior_matrix = None
     manifest_vars = None
 
-    st.badge("""
-    :material/info: For the model name, it is recommended to be descriptive (e.g., "minres_varimax_4").
-    """, color="blue")
+    if st.session_state.LARGEST_POLY_CORR is None:
+        st.info(":material/info: If you wish to use polychoric correlations, re-load the dataset and choose the "
+                "option to calculate polychoric correlations.")
 
     can_proceed = True
 
-    col_1, col_2 = st.columns(2)
+    col_1, col_2, col_3 = st.columns(3)
     with col_1:
         model_name = st.text_input(label="Model name", value=f"model_{len(st.session_state.FACTOR_MODELS) + 1}",
-                                   help="This must be unique.", width="stretch", key="model_name_fit")
+                                   help="""
+                                   This must be unique. It is recommended to be descriptive (e.g., "minres_varimax_4").
+                                   """,
+                                   width="stretch", key="model_name_fit")
     with col_2:
         number_of_factors = st.number_input(label="Number of factors", placeholder="Enter a positive number...",
                                             value=3, min_value=1, max_value=(st.session_state.DATA.shape[1] - 1),
                                             help="The number of factors cannot exceed the number of manifest "
                                                  "variables.", width="stretch", key="num_fac_input")
         factor_count_warning = st.empty()
+    with col_3:
+        corr_type = st.selectbox(
+            "Type of correlation to use",
+            options=["Pearson", "Polychoric"] if st.session_state.LARGEST_POLY_CORR is not None else ["Pearson"],
+            index=0,
+            key="corr_type_input",
+            help="Polychoric correlation is generally considered to be more appropriate but it is computationally "
+                 "more expensive."
+        )
 
     manifest_vars = st.multiselect(
         "Manifest variables",
@@ -1129,7 +1318,7 @@ def fit_model_dialog():
             prior_matrix = None
 
     st.space()
-    col_1, col_2, col_3 = st.columns([12, 3, 3])
+    _, col_2, col_3 = st.columns([12, 3, 3])
     with col_3:
         if st.button("Cancel", width="stretch", key="cancel_fit_btn"):
             st.rerun()
@@ -1153,6 +1342,10 @@ def fit_model_dialog():
                 if number_of_factors < 1 or number_of_factors >= len(manifest_vars):
                     st.toast("🚫 The number of factors must be at least 1 but less than the number of "
                              "manifest variables.", duration="long")
+                    any_failed = True
+
+                if corr_type not in ["Pearson", "Polychoric"]:
+                    st.toast("🚫 Please enter a valid correlation type.", duration="long")
                     any_failed = True
 
                 if estimation_method not in ESTIMATION_METHODS:
@@ -1185,6 +1378,7 @@ def fit_model_dialog():
                 if not any_failed:
                     st.session_state.model_name = model_name
                     st.session_state.number_of_factors = number_of_factors
+                    st.session_state.corr_type = corr_type
                     st.session_state.estimation_method = estimation_method
                     st.session_state.rotation = rotation
                     st.session_state.prior_matrix = prior_matrix
@@ -1192,13 +1386,6 @@ def fit_model_dialog():
                     st.session_state.manifest_vars = manifest_vars
                     st.session_state.FIT_MODEL = "Yes"
                     st.rerun()
-
-
-def delete_factor_model(model_name):
-    del st.session_state.FACTOR_MODELS[model_name]
-    del st.session_state.FIT_DETAILS[model_name]
-    if model_name in st.session_state.INTERPRETATIONS:
-        del st.session_state.INTERPRETATIONS[model_name]
 
 
 @st.dialog(":material/bar_chart: View factor models", width="large", on_dismiss="rerun")
@@ -1209,7 +1396,7 @@ def view_models_dialog():
     if model_name is None:
         st.error("There are no factor models available.")
     else:
-        col_1, col_2 = st.columns([21, 3])
+        _, col_2 = st.columns([21, 3])
         with col_2:
             st.button("Delete model", on_click=delete_factor_model, args=(model_name,),
                       width="stretch", key="delete_model_btn")
@@ -1227,16 +1414,16 @@ def view_models_dialog():
             st.caption("Number of factors")
             st.badge(str(fit_details["number_of_factors"]), color="green")
         with col_3:
-            st.caption("Estimation method")
-            st.badge(str(fit_details["estimation_method"]), color="green")
+            st.caption("Correlation type")
+            st.badge(str(fit_details["corr_type"]), color="green")
 
         col_1, col_2, col_3 = st.columns(3)
         with col_1:
+            st.caption("Estimation Method")
+            st.badge(str(fit_details["estimation_method"]).capitalize(), color="green")
+        with col_2:
             st.caption("Rotation")
             st.badge(str(fit_details["rotation"]).capitalize(), color="green")
-        with col_2:
-            st.caption("Prior type")
-            st.badge(str(fit_details["prior"]), color="green")
         with col_3:
             st.caption("V-index")
             v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
@@ -1245,6 +1432,33 @@ def view_models_dialog():
 
         st.space()
 
+        with st.expander("View correlation matrix", expanded=False):
+            if fit_details["corr_type"] == "Pearson":
+                df_corr = st.session_state.DATA[fit_details["manifest_vars"]].corr()
+            else:
+                df_corr = st.session_state.LARGEST_POLY_CORR.loc[
+                    fit_details["manifest_vars"], fit_details["manifest_vars"]
+                ]
+
+            fig_corr = px.imshow(
+                df_corr,
+                text_auto="0.3f",
+                aspect="auto",
+                color_continuous_scale=continuous_diverging_color_palette,
+                zmin=-1, zmax=1
+            )
+            fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+            fig_corr.update_yaxes(tickmode="linear", dtick=1)
+            fig_corr.update_layout(
+                height=min(900, max(50 * len(fit_details["manifest_vars"]), 300)),
+                title=f"Correlation Matrix ({str(fit_details['corr_type'])})"
+            )
+            st.plotly_chart(fig_corr, width="stretch", key="view_corr_view_model")
+            _, col_2, _ = st.columns(3)
+            with col_2:
+                st.download_button("Download correlation matrix as CSV file", df_corr.to_csv(),
+                                   file_name=f"{model_name}_corr_matrix.csv", width="stretch")
+            st.space()
         if fit_details["prior"] != "None":
             with st.expander("View prior matrix", expanded=False):
                 df_prior_matrix = pd.DataFrame(factor_model.prior_,
@@ -1261,10 +1475,10 @@ def view_models_dialog():
                 fig_prior.update_yaxes(tickmode="linear", dtick=1)
                 fig_prior.update_layout(
                     height=min(900, max(50 * len(fit_details["manifest_vars"]), 300)),
-                    title="Prior Matrix"
+                    title=f"Prior Matrix ({str(fit_details['prior']).capitalize()})"
                 )
                 st.plotly_chart(fig_prior, width="stretch", key="view_prior_view_model")
-                col_1, col_2, col_3 = st.columns(3)
+                _, col_2, _ = st.columns(3)
                 with col_2:
                     st.download_button("Download prior matrix as CSV file", df_prior_matrix.to_csv(),
                                        file_name=f"{model_name}_prior_matrix.csv", width="stretch")
@@ -1288,7 +1502,6 @@ def view_models_dialog():
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
             ]
-        st.write(continuous_diverging_color_palette)
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
             cmap=continuous_diverging_color_palette, axis=None,
@@ -1325,8 +1538,9 @@ def view_models_dialog():
 
         st.space()
 
-        model_summary = st.session_state.FACTOR_MODELS[model_name].summarize_model(model_name)
-        factor_scores = model_summary["scores"]
+        factor_scores = st.session_state.FACTOR_MODELS[model_name].models[model_name].transform(
+            st.session_state.DATA
+        )
         df_factor_scores = pd.DataFrame(factor_scores, columns=[f"factor_{idx + 1}"
                                                                 for idx in range(factor_scores.shape[1])])
         df_factor_scores_long = df_factor_scores.melt(var_name="Factor", value_name="Score")
@@ -1342,7 +1556,7 @@ def view_models_dialog():
         st.caption("Factor score distribution")
         st.plotly_chart(fig_scores_hist, width="stretch", key="view_factor_scores_view_model")
         df_data_with_factor_scores = pd.concat([st.session_state.DATA, df_factor_scores], axis=1)
-        col_1, col_2, col_3 = st.columns(3)
+        _, col_2, _ = st.columns(3)
         with col_2:
             st.download_button("Download factor scores as CSV file", df_data_with_factor_scores.to_csv(),
                                file_name=f"{model_name}_factor_scores.csv", width="stretch")
@@ -1367,7 +1581,7 @@ def view_models_dialog():
         fig_factor_corr.update_yaxes(tickmode="linear", dtick=1)
         st.caption("Factor correlations")
         st.plotly_chart(fig_factor_corr, width="stretch", key="view_factor_corr_view_model")
-        col_1, col_2, col_3 = st.columns(3)
+        _, col_2, _ = st.columns(3)
         with col_2:
             st.download_button("Download factor correlations as CSV file", df_factor_corr_mat.to_csv(),
                                file_name=f"{model_name}_factor_correlations.csv", width="stretch")
@@ -1490,7 +1704,7 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
 with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
     if st.session_state.DATA is None:
         st.warning("You have not uploaded a dataset yet.")
-        col_1, col_2, col_3 = st.columns([1, 5, 1])
+        _, col_2, _ = st.columns([1, 5, 1])
         with col_2:
             st.button("Upload", width="stretch", disabled=(st.session_state.USE_MODEL_LOADED != 1),
                       on_click=upload_data_dialog, key="upload_data_btn", type="primary")
@@ -1542,6 +1756,7 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
             if st.button("Clear", width="stretch", key="clear_data_btn"):
                 st.session_state.DATA = None
                 st.session_state.DATA_NAME = None
+                st.session_state.LARGEST_POLY_CORR = None
                 st.session_state.IS_LIKERT = None
                 st.session_state.LIKERT_DIRECTION = None
                 st.session_state.STATEMENTS = None
@@ -1762,7 +1977,7 @@ with tab_overview:
         the plot changes depending on how interpretable the factor model is!**
         """)
 
-        col_1, col_2, col_3 = st.columns([1, 5, 1])
+        _, col_2, _ = st.columns([1, 5, 1])
         with col_2:
             fig_sample_v_plot = px.scatter(
                 st.session_state.SAMPLE_V_DATA,
@@ -2053,7 +2268,7 @@ with tab_diagnostics:
                         st.caption("Comparative Fit Index")
                         st.write(cfi)
 
-                    col_1, col_2, col_3 = st.columns(3)
+                    col_1, col_2, _ = st.columns(3)
                     with col_1:
                         st.caption("Tucker-Lewis Index")
                         st.write(tli)
@@ -2115,14 +2330,29 @@ with tab_diagnostics:
                 st.space()
 
             with st.expander("Correlations"):
-                corr_mat = data_subset.corr()
+                diagnostics_corr_type = st.selectbox(
+                    "Correlation type",
+                    options=(["Pearson", "Polychoric"] if st.session_state.LARGEST_POLY_CORR is not None
+                             else ["Pearson"]),
+                    index=0,
+                    key="diagnostics_corr_type"
+                )
+
+                final_corr_type = "Pearson"
+                if diagnostics_corr_type == "Pearson":
+                    corr_mat = data_subset.corr()
+                else:
+                    if st.session_state.LARGEST_POLY_CORR is not None:
+                        corr_mat = st.session_state.LARGEST_POLY_CORR.loc[manifest_vars, manifest_vars]
+                        final_corr_type = "Polychoric"
+
                 fig_corr = px.imshow(
                     corr_mat,
                     text_auto="0.2f",
                     aspect="auto",
                     color_continuous_scale=continuous_diverging_color_palette,
                     zmin=-1, zmax=1,
-                    title="Subsetted correlation matrix"
+                    title=f"Subsetted correlation matrix ({final_corr_type})"
                 )
                 fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_corr.update_yaxes(tickmode="linear", dtick=1)
@@ -2138,7 +2368,7 @@ with tab_dashboard:
     if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0:
         st.warning("Fit a factor model first.")
     else:
-        col_1, col_2 = st.columns(2)
+        col_1, _ = st.columns(2)
         with col_1:
             selected_models = st.multiselect(
                 "Select models to examine", options=sorted(list(st.session_state.FACTOR_MODELS.keys())),
@@ -2180,7 +2410,7 @@ with tab_dashboard:
 
                     st.caption("QUANTITATIVE")
 
-                    col_1, col_2, col_3 = st.columns(3)
+                    col_1, col_2, col_3, _ = st.columns(4)
                     col_1.metric("Variables", str(len(fit_details["manifest_vars"])))
                     col_2.metric("Factors", str(fit_details["number_of_factors"]))
                     v = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
@@ -2189,14 +2419,17 @@ with tab_dashboard:
 
                     st.space()
 
-                    col_4, col_5, col_6 = st.columns(3)
+                    col_4, col_5, col_6, col_7 = st.columns(4)
                     with col_4:
+                        st.caption("CORRELATION TYPE")
+                        st.write(str(fit_details["corr_type"].capitalize()))
+                    with col_5:
                         st.caption("ESTIMATION METHOD")
                         st.write(str(fit_details["estimation_method"].capitalize()))
-                    with col_5:
+                    with col_6:
                         st.caption("ROTATION")
                         st.write(str(fit_details["rotation"]).capitalize())
-                    with col_6:
+                    with col_7:
                         st.caption("PRIOR TYPE")
                         st.write(str(fit_details["prior"]))
 
@@ -2291,10 +2524,11 @@ with tab_dashboard:
                                     trendline="lowess",
                                     color_discrete_sequence=discrete_colors,
                                     title=f"{similarity_type} vs Loading Similarity",
-                                    subtitle=f"V = "
-                                             f"{st.session_state.FACTOR_MODELS[
-                                                 model_name
-                                             ].calculate_v_index(model_name)}"
+                                    subtitle=f"""
+                                    V = {st.session_state.FACTOR_MODELS[
+                                        model_name
+                                    ].calculate_v_index(model_name)}
+                                    """
                                 )
 
                                 if any("invalid value encountered in divide" in str(warn.message) for warn in w):
