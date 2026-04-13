@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.2.0
+# FactorFlow V3.2.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -34,7 +34,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.2.0"
+VERSION_NUMBER = "3.2.1"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -1615,7 +1615,7 @@ st.markdown("""
             width: 100%;
             background-color: #FFFFFF;
             color: #7B8284;
-            text-align: right;
+            text-align: center;
             padding: 7px 30px 7px 30px;
             font-size: 11px;
             z-index: 999990;
@@ -2170,7 +2170,6 @@ with tab_overview:
         [here](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
 
         ###### Limitations and Future Releases
-        * The tool currently does not support polychoric correlations. This will be added in the future.
         * The Universal Sentence Encoder is the only embedder available for the statements for now.
         * A video walkthrough of the tool is in the works.
         """)
