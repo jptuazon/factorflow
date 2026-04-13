@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.0.0
+# FactorFlow V3.1.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -34,7 +34,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.0.0"
+VERSION_NUMBER = "3.1.0"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -55,6 +55,7 @@ COLOR_CONTINUOUS_SEQUENTIAL_SCALES = {
     k: v for k, v in px.colors.sequential.__dict__.items()
     if isinstance(v, list) and not k.startswith("_")
 }
+COLOR_SPECIAL_SEQUENTIAL = ["Viridis", "Plasma", "Cividis", "Magma", "Inferno"]
 
 
 # Universal sentence encoder set up
@@ -126,6 +127,12 @@ if "DATA" not in st.session_state:
 
 if "DATA_NAME" not in st.session_state:
     st.session_state.DATA_NAME = None
+
+if "IS_LIKERT" not in st.session_state:
+    st.session_state.IS_LIKERT = None
+
+if "LIKERT_DIRECTION" not in st.session_state:
+    st.session_state.LIKERT_DIRECTION = None
 
 if "STATEMENTS" not in st.session_state:
     st.session_state.STATEMENTS = None
@@ -256,9 +263,9 @@ if st.session_state.FIT_MODEL == "Yes":
 # LLM set up
 LLM_API_KEY = st.secrets["GROQ_API_KEY"]
 LLM_MODEL_IDS = [
-    "llama-3.1-8b-instant",
     "llama-3.3-70b-versatile",
-    "openai/gpt-oss-120b"
+    "openai/gpt-oss-120b",
+    "llama-3.1-8b-instant"
 ]
 
 if "LLM_CLIENT" not in st.session_state:
@@ -295,23 +302,42 @@ def generate_interpretation(factors):
                     
                     Statements Section Requirements:
                     - List ALL statements under the factor.
+                    - The statement label is given before each statement. The loading's sign is also given. For 
+                    example, in "X1 (Positive): I am sad.", X1 is the statement label of "I am sad." and the sign of 
+                    the loading is positive.
                     - Format as:
-                      Statement 1: [full statement]
-                      Statement 2: [full statement]
+                      [statement label 1] (loading sign 1): [full statement 1]
+                      [statement label 2] (loading sign 2): [full statement 2]
                     - Preserve the original wording exactly (do NOT paraphrase).
-                    - Number statements in the order given in the input.
+                    - Label the statements with the labels given in the input and list them in the order that
+                    they are given.
+                    - Within a factor, list down each statement included ONLY once. This is important.
                     
                     Description Requirements:
                     - Avoid surface-level or generic interpretations.
                     - Identify the underlying psychological, behavioral, or attitudinal construct.
                     - Prefer abstract constructs over literal summaries of statements.
+                    - Take into account the signs of the loadings when creating an interpretation.
                     
                     Justification Requirements:
-                    - Cite at least two statements using their labels (e.g., "Statement 1").
+                    - Cite at least two statements using their labels (e.g., "X1").
                     - Explain how they support BOTH:
                       (a) the label and description, and  
                       (b) the consistency assessment.
                     - Go beyond restating. Provide reasoning.
+                    - Take into account the signs of the loadings when creating an interpretation.
+                    
+                    Scale Direction Rule:
+                    - At the beginning of the input, it is possible that "Scale Direction" is specified. It can be 
+                    either "Disagree-Agree", which means that larger variable values indicate higher agreement levels, 
+                    or "Agree-Disagree", which means larger variable values indicate lower agreement levels.
+                    - When interpreting factors, take the scale direction into account, if scale direction is 
+                    present. For example, if the sign of the loading is positive and the scale direction is 
+                    "Disagree-Agree", that means greater agreement with the variable corresponds to higher 
+                    factor scores.
+                    - Note that the scale direction by itself does NOT influence interpretation. However, pairing 
+                    the sign of the loading with the scale direction allows you to properly interpret the 
+                    "effect" of a manifest variable on a factor.
                     
                     Conflict Handling Rule:
                     - If statements reflect multiple distinct or conflicting themes:
@@ -354,19 +380,31 @@ def generate_interpretation(factors):
                     Before finalizing your response, internally verify that:
                     - Every factor includes ALL four sections.
                     - No section is missing or incorrectly formatted.
+                    - No relevant statement is missing for ANY factor.
                     - "No statements" and "Not applicable" are used correctly when required.
                     - No full statements appear outside the Statements section.
-                    - All references use "Statement X" format.
+                    - All references to statements use their labels.
                     - Formatting exactly matches the template.
                     - All rules and requirements are followed.
+                    - Within a factor, list down each statement included ONLY once. This is important. For instance, 
+                    if "X1: I am sad." is included in factor_1, then "X1: I am sad." must appear in factor_1 EXACTLY 
+                    once. No duplicates.
+                    - Take into account the signs of the loadings when creating an interpretation.
+                    
+                    Input Template:
+                    Scale Direction - [direction of scale]
+                    
+                    **factor_X**
+                    - [statement label 1] [loading sign 1]: [full statement 1]
+                    - [statement label 2] (loading sign 2): [full statement 2]
                     
                     Output Template (APPLY TO EVERY FACTOR WITHOUT EXCEPTION):
                     
                     **factor_X**
                     
                     • **Statements**:
-                      Statement 1: [full statement]  
-                      Statement 2: [full statement]
+                      [statement label 1] (loading sign 1): [full statement 1] 
+                      [statement label 2 (loading sign 2): [full statement 2]
                     
                     • **Label**: [2–4 word label]
                     
@@ -403,29 +441,37 @@ def generate_interpretation(factors):
         return "Error", "Rate limit reached. Please try again in a while or use a different model."
 
 
-def interpret_factor_model(df_discretized_loadings):
+def interpret_factor_model(df_discretized_loadings, model_name):
     input_for_llm = ""
+
+    if st.session_state.IS_LIKERT:
+        direction = "Disagree-Agree" if st.session_state.LIKERT_DIRECTION == "01" else "Agree-Disagree"
+        input_for_llm += f"Scale Direction - {direction}\n"
+
+    if df_discretized_loadings is None:
+        st.session_state.INTERPRETATIONS[model_name] = (None, "")
+        return
 
     for idx, factor in enumerate(df_discretized_loadings.columns):
         factor_loadings = df_discretized_loadings[factor]
-        variables = df_discretized_loadings[factor_loadings == 1].index.tolist()
+        variables = df_discretized_loadings[factor_loadings.abs() == 1].index.tolist()
+        variables = sorted(variables, key=lambda x: int(x[1:]))
+        signs = ["Positive" if factor_loadings.loc[variable] > 0 else "Negative" for variable in variables]
 
         input_for_llm += f"\n{factor}:\n"
         if len(variables) == 0:
             input_for_llm += "- No statements."
             continue
         else:
-            input_for_llm += f"\n{factor}:\n"
-
-            for variable in variables:
+            for idy, variable in enumerate(variables):
                 statement = st.session_state.STATEMENTS_DF[
                     st.session_state.STATEMENTS_DF["Variable"] == variable
                 ]["Statement"].item()
-                input_for_llm += f"- {statement}\n"
+                input_for_llm += f"- {variable} ({signs[idy]}): {statement}\n"
 
     input_for_llm = input_for_llm.encode("utf-8").decode("unicode_escape")
-
-    return generate_interpretation(input_for_llm)
+    interpretation = generate_interpretation(input_for_llm)
+    st.session_state.INTERPRETATIONS[model_name] = interpretation
 
 
 # Page configuration
@@ -633,11 +679,15 @@ def upload_data_dialog():
              color="blue")
     df_data = None
     data_file_name = None
+    is_likert = None
+    likert_direction = None
     statements = None
     statements_file_name = None
+    use_statements = None
 
     can_proceed = True
 
+    st.space("xxsmall")
     csv_data = st.file_uploader("Choose a CSV file for the main dataset:", type="csv")
     if csv_data is not None:
         df_data = pd.read_csv(csv_data, header=None)
@@ -652,6 +702,7 @@ def upload_data_dialog():
 
     if can_proceed:
         if df_data is not None:
+            st.divider()
             use_statements = st.checkbox("Upload statements or questions associated with the manifest variables?",
                                          key="upload_questions_checkbox")
             if use_statements:
@@ -672,13 +723,37 @@ def upload_data_dialog():
                     st.warning("Please upload the CSV file.")
                     can_proceed = False
 
+    if use_statements and can_proceed:
+        st.divider()
+        is_likert = st.selectbox(
+            "Is your data composed of Likert-type items?",
+            options=["Yes", "No"],
+            index=0
+        )
+        if is_likert == "Yes":
+            likert_direction = st.radio(
+                "What is the direction of the scale of the Likert-type items?",
+                options=["Disagree-Agree", "Agree-Disagree"],
+                horizontal=True,
+                help="""
+                  "Disagree-Agree" means that larger numbers indicate stronger levels of agreement, such as 1 - 
+                  Strongly Disagree to 5 - Strongly Agree. "Agree-Disagree" refers to the opposite direction, 
+                  such as 1 - Very Satisfied to 5 - Very Dissatisfied.
+                  """
+            )
+
     st.space()
     if can_proceed and (df_data is not None):
         col_1, col_2 = st.columns([15, 3])
         with col_2:
-            if st.button("Confirm", width="stretch", key="confirm_data_btn"):
+            if st.button("Confirm", width="stretch", type="primary", key="confirm_data_btn"):
                 st.session_state.DATA = df_data
                 st.session_state.DATA_NAME = data_file_name
+                st.session_state.IS_LIKERT = (is_likert == "Yes") if is_likert is not None else None
+                st.session_state.LIKERT_DIRECTION = (
+                    ("01" if likert_direction == "Disagree-Agree" else "10")
+                    if likert_direction is not None else None
+                )
                 st.session_state.STATEMENTS = statements
                 st.session_state.STATEMENTS_NAME = statements_file_name
                 st.session_state.STATEMENTS_DF = pd.DataFrame({
@@ -1192,7 +1267,7 @@ def view_models_dialog():
                 col_1, col_2, col_3 = st.columns(3)
                 with col_2:
                     st.download_button("Download prior matrix as CSV file", df_prior_matrix.to_csv(),
-                                       file_name="prior_matrix.csv", width="stretch")
+                                       file_name=f"{model_name}_prior_matrix.csv", width="stretch")
                 st.space()
         else:
             st.warning("No prior matrix was used for this model.")
@@ -1213,13 +1288,18 @@ def view_models_dialog():
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
             ]
+        st.write(continuous_diverging_color_palette)
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
-            cmap=continuous_diverging_color_palette, axis=None, subset=[col for col in model_analysis.columns
-                                                                        if col.startswith("factor_")],
+            cmap=continuous_diverging_color_palette, axis=None,
+            subset=[col for col in model_analysis.columns if col.startswith("FACTOR_")],
             vmin=-1.0, vmax=1.0
         ).background_gradient(
-            cmap=continuous_sequential_color_palette, axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+            cmap=(
+                continuous_sequential_color_palette
+                if continuous_sequential_color_palette not in COLOR_SPECIAL_SEQUENTIAL
+                else continuous_sequential_color_palette.lower()
+            ), axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
         )
 
         st.caption("Means, correlations, communalities, and sampling adequacies")
@@ -1265,7 +1345,7 @@ def view_models_dialog():
         col_1, col_2, col_3 = st.columns(3)
         with col_2:
             st.download_button("Download factor scores as CSV file", df_data_with_factor_scores.to_csv(),
-                               file_name="factor_scores.csv", width="stretch")
+                               file_name=f"{model_name}_factor_scores.csv", width="stretch")
 
         st.space()
 
@@ -1290,7 +1370,7 @@ def view_models_dialog():
         col_1, col_2, col_3 = st.columns(3)
         with col_2:
             st.download_button("Download factor correlations as CSV file", df_factor_corr_mat.to_csv(),
-                               file_name="factor_correlations.csv", width="stretch")
+                               file_name=f"{model_name}_factor_correlations.csv", width="stretch")
 
         st.space()
 
@@ -1313,19 +1393,7 @@ st.markdown("""
             transform-origin: center center !important;
             
         }
-        
-        footer {
-            display: none !important;
-        }
-        
-        a[href="https://streamlit.io/cloud"] {
-            display: none !important;
-        }
-        
-        a[href="https://share.streamlit.io/user/jptuazon"] {
-            display: none !important;
-        }
-        
+
         .custom-footer {
             position: fixed;
             left: 0;
@@ -1348,15 +1416,17 @@ with col_2:
         with st.spinner("Loading NLP models...", show_time=True):
             while st.session_state.USE_MODEL_LOADED != 1:
                 time.sleep(0.1)
-_, col_2, _ = st.columns([1, 6, 1])
-with col_2:
-    st.markdown(
-        "<h3 style='text-align: center;'>An LLM-enhanced Visual Workbench for Exploratory Factor Analysis</h3>",
-        unsafe_allow_html=True
-    )
-    st.space()
 
 st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+    _, col_2, _ = st.columns([1, 6, 1])
+    with col_2:
+        st.markdown(
+            "<h4 style='text-align: center;'>An LLM-enhanced Visual Workbench for "
+            "Exploratory Factor Analysis</h4>",
+            unsafe_allow_html=True
+        )
+        st.space()
 
 # Sidebar
 st.sidebar.title(":material/menu: Menu")
@@ -1400,6 +1470,7 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
         st.session_state.CURRENT_LLM_MODEL_ID = st.selectbox(
             "Model in use:",
             options=LLM_MODEL_IDS,
+            index=0,
             label_visibility="collapsed",
             key="llm_choice"
         )
@@ -1442,6 +1513,24 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
 
         col_1, col_2 = st.columns(2)
         with col_1:
+            st.caption("Is Likert-type?")
+            if st.session_state.IS_LIKERT:
+                st.write("Yes")
+            elif st.session_state.IS_LIKERT is not None:
+                st.write("No")
+            else:
+                st.write("N/A")
+        with col_2:
+            st.caption("Scale Direction")
+            if st.session_state.LIKERT_DIRECTION == "01":
+                st.write("Disagree-Agree")
+            elif st.session_state.LIKERT_DIRECTION == "10":
+                st.write("Agree-Disagree")
+            else:
+                st.write("N/A")
+
+        col_1, col_2 = st.columns(2)
+        with col_1:
             st.button("Stats", width="stretch", type="primary", key="stats_view_data", on_click=view_data_dialog)
         with col_2:
             st.button("Tags", width="stretch", key="view_tags_btn", on_click=view_tags_dialog)
@@ -1453,6 +1542,8 @@ with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
             if st.button("Clear", width="stretch", key="clear_data_btn"):
                 st.session_state.DATA = None
                 st.session_state.DATA_NAME = None
+                st.session_state.IS_LIKERT = None
+                st.session_state.LIKERT_DIRECTION = None
                 st.session_state.STATEMENTS = None
                 st.session_state.STATEMENTS_DF = None
                 st.session_state.EMBEDDINGS = None
@@ -1548,7 +1639,7 @@ with st.sidebar.expander("Settings", True, icon=":material/settings:"):
         options=sorted(COLOR_CONTINUOUS_DIVERGING_SCALES.keys()),
         index=list(sorted(COLOR_CONTINUOUS_DIVERGING_SCALES.keys())).index("RdBu"),
         help="""
-        This is the primary color palette that will be used for diverging continuous values (e.g., heatmaps). 
+        This is the primary color palette that will be used for diverging continuous values (e.g., loadings). 
         The default is "RdBu". A typical colorblind-safe palette is "PuOr".
         """
     )
@@ -1582,16 +1673,18 @@ with st.sidebar.expander("Settings", True, icon=":material/settings:"):
         }
     )
 
-    sequential_choices = (
+    sequential_choices = list(
         set(COLOR_CONTINUOUS_SEQUENTIAL_SCALES.keys()) & set(plt.colormaps())
     )
+    sequential_choices.extend(COLOR_SPECIAL_SEQUENTIAL)
+    sequential_choices = sorted(sequential_choices)
     continuous_sequential_color_palette = st.selectbox(
         "Continuous sequential color palette",
-        options=sorted(sequential_choices),
-        index=sorted(list(sequential_choices)).index("Blues"),
+        options=sequential_choices,
+        index=sequential_choices.index("Viridis"),
         help="""
-        This is the primary color palette that will be used for diverging continuous values (e.g., heatmaps). 
-        The default is "Blues"". A typical colorblind-safe palette is "Viridis".
+        This is the primary color palette that will be used for sequential continuous values (e.g., communalities). 
+        The default is "Viridis"". A typical colorblind-safe palette is "Cividis".
         """
     )
     continuous_sequential_colors = COLOR_CONTINUOUS_SEQUENTIAL_SCALES[continuous_sequential_color_palette]
@@ -1668,6 +1761,7 @@ with tab_overview:
         arbitrary information for analyzing factor models. **Interact with the sample visualization above to see how 
         the plot changes depending on how interpretable the factor model is!**
         """)
+
         col_1, col_2, col_3 = st.columns([1, 5, 1])
         with col_2:
             fig_sample_v_plot = px.scatter(
@@ -1714,32 +1808,32 @@ with tab_overview:
             [
                 dict(
                     icon=":material/build:",
-                    title="1. Configure",
-                    description="Set your preferences."
+                    title="Configure (Optional)",
+                    description="Set your preferences (or stick with the defaults)."
                 ),
                 dict(
                     icon=":material/upload:",
-                    title="2. Upload",
+                    title="1. Upload",
                     description="Import your files.",
                 ),
                 dict(
                     icon=":material/feature_search:",
-                    title="3. Explore",
+                    title="2. Explore",
                     description="Do some basic stats and diagnostics.",
                 ),
                 dict(
                     icon=":material/model_training:",
-                    title="4. Fit",
+                    title="3. Fit",
                     description="Estimate factor models.",
                 ),
                 dict(
                     icon=":material/stacked_bar_chart:",
-                    title="5 Analyze",
+                    title="4 Analyze",
                     description="Examine your models.",
                 ),
                 dict(
                     icon=":material/export_notes:",
-                    title="6. Export",
+                    title="5. Export",
                     description="Download the results.",
                 )
             ],
@@ -1768,10 +1862,14 @@ with tab_overview:
                 ###### The main dataset (CSV file). 
                 This is the tabular dataset on which the factor models will be fit. Each 
                 column must represent a feature and each observation must represent an observation. All data values 
-                must be numeric and there must be no missing values. This is **required** to fit a model. The CSV file 
+                must be numeric and there must have no missing values. This is **required** to fit a model. The CSV file 
                 or raw dataset **should not** have column headers. The tool will automatically label the columns as 
                 X1, X2, and so on.
+                
+                A sample CSV file can be found 
+                [here](https://drive.google.com/file/d/1NE02MwevCcHn4HXwxyXfF9AUjnSs5WGo/view?usp=sharing).
                 """)
+
             with upload_sub_tab_2:
                 st.markdown("""
                 ###### The statements associated with the features (TXT file).
@@ -1784,13 +1882,26 @@ with tab_overview:
                 Ideally, statements should not be too long but they should also be "complete" (e.g., 
                 a full sentence). However, it is also possible to have just "regular" one or two-word variable names 
                 such as "height" and so on. In such cases though, semantic similarities may not be as meaningful.
+                
+                A sample TXT file can be found 
+                [here](https://drive.google.com/file/d/1oXX7HNPhaOOvOTg_NgLV-Fla6O8EoQQi/view?usp=drive_link).
                 """)
+
             with upload_sub_tab_3:
                 st.markdown("""
                 ###### The tags associated with each variable (manual or CSV file). 
                 You can add tags to each variable or statement to help visualize interpretability. 
                 To do so, click *Tags* under *Dataset*. Then, either upload manually or an appropriate CSV file. 
                 This is optional.
+                
+                The CSV file must have two columns. The first column must contain the variables 
+                and the second column must contain the corresponding tags. If a variable has 
+                multiple tags, separate them using commas (e.g., "Tag A, Tag B"). If a variable 
+                has no tags, leave the cell blank. The CSV file must not have headers.
+                
+                Sample CSV files can be found 
+                [here](https://drive.google.com/file/d/1wVspesiKovOf_ZjrlEvXMs5BM-r4EN7F/view?usp=sharing) and 
+                [here](https://drive.google.com/file/d/1JxMdwDOSoV0N5IPQKygeOBfVcnciLD2b/view?usp=sharing).
                 
                 **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
                 variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
@@ -1893,7 +2004,11 @@ with tab_diagnostics:
             model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
             model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
             model_analysis_styled = model_analysis_styled.style.background_gradient(
-                cmap=continuous_sequential_color_palette, axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
+                cmap=(
+                    continuous_sequential_color_palette
+                    if continuous_sequential_color_palette not in COLOR_SPECIAL_SEQUENTIAL
+                    else continuous_sequential_color_palette.lower()
+                ), axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0, vmax=1.0
             )
 
             with st.expander("Goodness-of-fit"):
@@ -2134,7 +2249,11 @@ with tab_dashboard:
                     comm_and_adeq.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
                     comm_and_adeq_styled = comm_and_adeq.reset_index(drop=True)
                     comm_and_adeq_styled = comm_and_adeq_styled.style.background_gradient(
-                        cmap=continuous_sequential_color_palette, axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0,
+                        cmap=(
+                            continuous_sequential_color_palette
+                            if continuous_sequential_color_palette not in COLOR_SPECIAL_SEQUENTIAL
+                            else continuous_sequential_color_palette.lower()
+                        ), axis=0, subset=["COMMUNALITY", "KMO_MSA"], vmin=0,
                         vmax=1.0
                     )
                     st.dataframe(comm_and_adeq_styled, hide_index=True, key=f"{model_name}_comm_and_adeq")
@@ -2402,8 +2521,9 @@ with tab_dashboard:
                     factor_cols = [col for col in df_loadings.columns if col.startswith("factor_")]
 
                     df_loadings_discretized = df_loadings.copy()
-                    df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
-                        float(thresh)
+                    df_loadings_discretized[factor_cols] = (
+                        np.sign(df_loadings_discretized[factor_cols]) *
+                        (df_loadings_discretized[factor_cols].abs() >= thresh)
                     ).astype(int)
 
                     if not show_raw:
@@ -2414,11 +2534,15 @@ with tab_dashboard:
                         text_auto="0.3f" if show_raw else "0",
                         aspect="auto",
                         color_continuous_scale=(continuous_diverging_color_palette
-                                                if show_raw else [(0, "#FFFFFF"), (1, "#08306B")]),
+                                                if show_raw else [(0, continuous_diverging_colors[1]),
+                                                                  (0.5, "#FFFFFF"),
+                                                                  (1, continuous_diverging_colors[-2])]),
                         color_continuous_midpoint=0 if show_raw else 0.5,
                         labels=dict(x="Factors", y="Variables",
                                     color="Loading" if show_raw else "Included"),
-                        title="Factor Loading Matrix"
+                        title="Factor Loading Matrix",
+                        zmin=-1,
+                        zmax=1
                     )
                     fig_loadings.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                     fig_loadings.update_yaxes(tickmode="linear", dtick=1)
@@ -2427,8 +2551,10 @@ with tab_dashboard:
                     )
                     if not show_raw:
                         fig_loadings.update_coloraxes(showscale=True,
-                                                      colorbar_tickvals=[0, 1],
-                                                      colorbar_ticktext=["No", "Yes"])
+                                                      colorbar_tickvals=[-1, 0, 1],
+                                                      colorbar_ticktext=["Yes (neg. loading)",
+                                                                         "No",
+                                                                         "Yes (pos. loading)"])
                     st.plotly_chart(fig_loadings, width="stretch", key=f"{model_name}_loadings")
 
                     df_loadings_download = df_loadings.reset_index(
@@ -2456,12 +2582,13 @@ with tab_dashboard:
                     st.download_button("Download as CSV file",
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
-                                       file_name="factor_loadings.csv", width="stretch")
+                                       file_name=f"{model_name}_factor_loadings.csv", width="stretch")
                     st.space()
                     with st.expander("View variables / statements associated with each factor"):
                         for idx, factor in enumerate(df_loadings_discretized.columns):
                             factor_loadings = df_loadings_discretized[factor]
-                            variables = df_loadings_discretized[factor_loadings == 1].index.tolist()
+                            variables = df_loadings_discretized[factor_loadings.abs() == 1].index.tolist()
+                            variables = sorted(variables, key=lambda x: int(x[1:]))
                             st.markdown(f"#### {factor}")
                             st.write(f"{len(variables)} manifest variable{'s' if len(variables) != 1 else ''}")
                             if len(variables) == 0:
@@ -2715,8 +2842,9 @@ with tab_dashboard:
                     factor_cols = [col for col in df_loadings.columns if col.startswith("factor_")]
 
                     df_loadings_discretized = df_loadings
-                    df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
-                        float(threshs[i])
+                    df_loadings_discretized[factor_cols] = (
+                        np.sign(df_loadings_discretized[factor_cols]) *
+                        (df_loadings_discretized[factor_cols].abs() >= threshs[i])
                     ).astype(int)
 
                     with st.expander("Options"):
@@ -2777,7 +2905,7 @@ with tab_dashboard:
 
                     edge_registry = {}
                     groupings = {
-                        col: df_loadings_discretized.index[df_loadings_discretized[col] == 1].tolist()
+                        col: df_loadings_discretized.index[df_loadings_discretized[col].abs() == 1].tolist()
                         for col in df_loadings_discretized.columns
                     }
                     for factor, manifest_vars in groupings.items():
@@ -2838,8 +2966,9 @@ with tab_dashboard:
                     factor_cols = [col for col in df_loadings.columns if col.startswith("factor_")]
 
                     df_loadings_discretized = df_loadings
-                    df_loadings_discretized[factor_cols] = df_loadings_discretized[factor_cols].abs().ge(
-                        float(threshs[i])
+                    df_loadings_discretized[factor_cols] = (
+                        np.sign(df_loadings_discretized[factor_cols]) *
+                        (df_loadings_discretized[factor_cols].abs() >= threshs[i])
                     ).astype(int)
 
                     st.subheader(":material/cognition_2: Interpretation")
@@ -2853,23 +2982,42 @@ with tab_dashboard:
                         st.caption("Note that this is not intended to replace the researcher's judgment and is "
                                    "only meant to help it. For instance, one should cross-check the LLM findings "
                                    "with the sign of the loadings, the cross-loadings, and so on.")
-                        col_1, col_2 = st.columns(2)
+                        st.caption("""
+                        Statements in the "Statement" section follow this format: 
+                        <Variable Name> (<Loading Sign>): <Statement>. For example, "X1 (Positive): I am sad." refers 
+                        to the manifest variable X1, whose statement is "I am sad." and whose loading for the given 
+                        factor is positive.
+                        """)
+                        st.space("xxsmall")
+
+                        has_attempt = st.session_state.INTERPRETATIONS[model_name][0] is not None
+                        has_interpretation = st.session_state.INTERPRETATIONS[model_name][0] != "Error"
+                        has_successful_interpretation = has_attempt and has_interpretation
+
+                        col_1, col_2, col_3 = st.columns(3)
                         with col_1:
-                            if st.button("Generate interpretation",
-                                         key=f"{model_name}_interpret_factor_model", width="stretch"):
-                                st.session_state.INTERPRETATIONS[model_name] = interpret_factor_model(
-                                    df_loadings_discretized
-                                )
+                            st.button("Generate" + (" again" if has_attempt else ""), type="primary",
+                                      key=f"{model_name}_interpret_factor_model", width="stretch",
+                                      on_click=interpret_factor_model, args=(df_loadings_discretized, model_name))
                         with col_2:
-                            if st.button("Clear interpretation", width="stretch",
-                                         key=f"{model_name}_clear_interpretation"):
-                                st.session_state.INTERPRETATIONS[model_name] = (None, "")
-                                st.rerun()
-                        if st.session_state.INTERPRETATIONS[model_name][0] is not None:
-                            st.space()
-                            if st.session_state.INTERPRETATIONS[model_name][0] != "Error":
-                                st.write(f"Generated by {st.session_state.INTERPRETATIONS[model_name][0]}")
+                            st.download_button("Download", type="secondary",
+                                               disabled=(not has_successful_interpretation),
+                                               data=st.session_state.INTERPRETATIONS[model_name][1],
+                                               file_name=f"{model_name}_interpretation.txt",
+                                               key=f"{model_name}_download_interpretation", width="stretch")
+                        with col_3:
+                            st.button("Clear", disabled=(not has_successful_interpretation),
+                                      key=f"{model_name}_clear_interpretation", width="stretch",
+                                      on_click=interpret_factor_model, args=(None, model_name))
+
+                        st.space()
+                        if has_successful_interpretation:
+                            st.write(f"Generated by {st.session_state.INTERPRETATIONS[model_name][0]}")
                             st.write(st.session_state.INTERPRETATIONS[model_name][1])
+                        elif has_attempt:
+                            st.error("Failed to generate interpretation earlier. Please try again.")
+                        else:
+                            st.warning("Please generate an interpretation first.")
 
                     st.space()
 
