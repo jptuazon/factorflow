@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.2.1
+# FactorFlow V3.2.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -34,7 +34,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.2.1"
+VERSION_NUMBER = "3.2.2"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -928,7 +928,6 @@ def upload_data_dialog():
                 st.session_state.FACTOR_MODELS = {}
                 st.session_state.FIT_DETAILS = {}
                 st.session_state.INTERPRETATIONS = {}
-                st.session_state.VARIABLE_TAGS = {}
                 st.session_state.LARGEST_POLY_CORR = None
 
                 st.session_state.CALCULATE_POLY_CORR = calc_poly_corr
