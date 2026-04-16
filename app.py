@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.2.2
+# FactorFlow V3.3.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -20,6 +20,8 @@ import time
 from itertools import product, combinations
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
+from statsmodels.stats.descriptivestats import sign_test
 import matplotlib.pyplot as plt
 import plotly.express as px
 import streamlit as st
@@ -34,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.2.2"
+VERSION_NUMBER = "3.3.0"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -233,6 +235,337 @@ def delete_factor_model(model_name):
         del st.session_state.INTERPRETATIONS[model_name]
 
 
+# Use cases
+@st.dialog(":material/ink_highlighter_move: Use cases", width="medium")
+def use_cases_dialog():
+    st.subheader(":material/cognition_2: Exploratory Factor Analysis")
+    st.markdown("""
+    FactorFlow focuses on exploratory factor analysis (EFA), which allows you to explore, identify, and study
+    **latent phenomena or constructs**. EFA is used in various fields, including, but not limited to:
+    """)
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.markdown("""
+        * Psychology and Psychometrics (e.g., behavioral traits, scale development)
+        * Education (e.g., learning styles)
+        * Health and Biology (e.g., characterization of syndromes, dimensionality reduction in genomics)
+        * Social Sciences (e.g., social constructs such as social capital)
+        """)
+    with col_2:
+        st.markdown("""
+        * Marketing and Consumer Research (e.g., customer perceptions)
+        * Organizational Development (e.g., job satisfication, productivity drivers)
+        * Economics and Finance (e.g., identification of economic forces)
+        * Data Science and Machine Learning (e.g., feature engineering)
+        """)
+
+    st.subheader(":material/search_insights: Data Analysis")
+    st.markdown("""
+    FactorFlow also provides facilities for basic **exploratory data analysis** of the raw dataset. For 
+    example, you can quickly see summary statistics (e.g., central tendency, dispersion, skewness, associations) for 
+    the variables or features, check distributions, and even **hypothesis testing**. This is useful for a wide class 
+    of problems, including **questionnaire or survey analysis**.
+    """)
+
+    st.space("xxsmall")
+
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.image("./images/steps/step_6_1.jpeg", width="stretch")
+    with col_2:
+        st.image("./images/steps/step_7_2.jpeg", width="stretch")
+
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.image("./images/steps/step_8_1.jpeg", width="stretch")
+    with col_2:
+        st.image("./images/steps/step_8_2.jpeg", width="stretch")
+
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.image("./images/steps/step_4_1.jpeg", width="stretch")
+    with col_2:
+        st.image("./images/steps/step_10_1.jpeg", width="stretch")
+
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.image("./images/steps/step_8_3.jpeg", width="stretch")
+    with col_2:
+        st.image("./images/steps/step_8_4.jpeg", width="stretch")
+
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.image("./images/steps/step_5_1.jpeg", width="stretch")
+    with col_2:
+        st.image("./images/steps/step_8_6.jpeg", width="stretch")
+
+
+# Specific how-to
+@st.dialog(":material/component_exchange: Step-by-step guide", width="large")
+def guide_dialog():
+    st.markdown("""
+    If you're interested only in performing exploratory data analysis on the raw dataset, you can read up to Step 4. 
+    If you want to utilize all features (e.g., when performing factor analysis), please read until the end.
+    """)
+    step = 0
+
+    with st.expander("Pre-requisite: The parts of the app and preferences"):
+        st.markdown("""
+        Familiarize yourself with the parts of the app. The app has a *Menu* **sidebar**, with four different 
+        **panels**:
+        * **NLP Models** - This shows the statuses of the NLP models used in the app. You can also configure the large 
+        language model here.
+        * **Data** - This is where you can upload your datasets. You can also examine your dataset in this panel by 
+        clicking the *Stats* button. High-level information is also displayed here.
+        * **Factor Models** - You can fit new factor models using this panel. It also shows the factor models that 
+        you have fitted and saved so far. You can examine each saved models by clicking *View*. High-level 
+        information is also displayed here.
+        * **Settings** - You can configure the application to match your preferences. You can change things like the 
+        color palettes used and the chart styles. 
+        
+        The app also has four different **tabs**:
+        * **Overview** - This is the home page, where you can find general information about the app.
+        * **Diagnostics** - This is where you can examine diagnostics for factor analysis. Here, you can determine 
+        how many factors to use or which manifest variables have low communalities, and so on.
+        * **Dashboard** - In this tab, you can see multiple figures and visualizations for assessing the factor 
+        model. You can also compare two factor models at the same time here.
+        * **About** - You can find development details for the app here.
+        """)
+
+        st.space("xxsmall")
+
+        st.image("./images/steps/step_pre_req_1.png", width="stretch")
+
+        st.space("xxsmall")
+
+        st.markdown("""
+        You can also configure app settings (e.g., color palettes) in the *Settings* panel. You can change settings 
+        anytime.
+        """)
+
+        st.image("./images/steps/step_pre_req_2.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Preparing uploads"):
+        st.markdown("""
+        Prepare your datasets for upload. For this demo, you can also download "ECR_data_clean.csv", 
+        "ECR_questions.txt", and "sample_statement_tags.csv" from 
+        [here](https://drive.google.com/drive/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X) as examples. There are 
+        three kinds of datasets or files that you can upload.
+        """)
+
+        st.markdown("""
+        ### The main dataset (CSV file). 
+        This is the tabular dataset on which the factor models will be fit. Each 
+        column must represent a feature and each observation must represent an observation. All data values 
+        must be numeric and there must have no missing values. This is **required** to fit a model. The CSV file 
+        or raw dataset **should not** have column headers. The tool will automatically label the columns as 
+        X1, X2, and so on.
+        """)
+
+        st.markdown("""
+        ### The statements associated with the features (TXT file).
+        This is the list of questions or statements associated with each feature in the main dataset. It must 
+        be a text file, where statements are separated by linebreaks - consecutive lines with one statement 
+        per line. The order of the statements must match the order of the columns in the main dataset (i.e., 
+        the first statement must correspond to the first feature). This is an **optional** input, and will be 
+        used only if you select "semantics" for the prior in pairwise target rotation.
+
+        Ideally, statements should not be too long but they should also be "complete" (e.g., 
+        a full sentence). However, it is also possible to have just "regular" one or two-word variable names 
+        such as "height" and so on. In such cases though, semantic similarities may not be as meaningful.
+        """)
+
+        st.markdown("""
+        ### The tags associated with each variable (manual or CSV file). 
+        You can add tags to each variable or statement to help visualize interpretability. 
+        To do so, click *Tags* under *Data*. Then, either upload manually or an appropriate CSV file. 
+        This is optional.
+ 
+        The CSV file must have two columns. The first column must contain the variables 
+        and the second column must contain the corresponding tags. If a variable has 
+        multiple tags, separate them using commas (e.g., "Tag A, Tag B"). If a variable 
+        has no tags, leave the cell blank. The CSV file must not have headers.
+        """)
+
+    step += 1
+    with st.expander(f"Step {step}: Uploading data"):
+        st.markdown("""
+        Upload "ECR_data_clean.csv" and "ECR_questions.txt" by clicking the *Upload* button in *Data* panel under 
+        *Menu*. You should see something like this.
+        """)
+
+        st.image("./images/steps/step_2_1.jpeg", width="stretch")
+        st.image("./images/steps/step_2_2.jpeg", width="stretch")
+
+        st.markdown("""
+        Calculating polychoric correlations can take some time, usually about a minute or two. Wait for it to 
+        finish and click "Finish".
+        """)
+
+        st.image("./images/steps/step_2_3.jpeg", width="stretch")
+        st.image("./images/steps/step_2_4.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Tagging variables"):
+        st.markdown("""
+        This step is optional. However, if you want to upload tags (metadata) for the variables, click *Tags* in 
+        the *Data* panel under *Menu*. You can manually tag variable or upload a CSV file. For demonstration purposes, 
+        you may upload "sample_statement_tags.csv" for the tags, as shown below.
+    
+        """)
+
+        st.image("images/steps/step_3_1.jpeg", width="stretch")
+        st.image("images/steps/step_3_2.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Summary statistics and hypothesis testing"):
+        st.markdown("""
+        You can view **summary statistics** and conduct **hypothesis testing** in the *View basic stats* window. To 
+        get to it, click *Stats* in the *Data* panel under *Menu*.
+        """)
+
+        st.image("./images/steps/step_4_1.jpeg", width="stretch")
+        st.image("./images/steps/step_4_2.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Diagnostics"):
+        st.markdown("""
+        You can check out the diagnostics for factor analysis in the *Diagnostics* tab. This will help you decide 
+        which manifest variables to retain and how many factors to include. You can find the following:
+        * **Goodness-of-fit** - Various goodness-of-fit metrics are displayed here.
+        * **Communalities and adequacies** - You can see the communality and Kaiser-Meyer-Olikin sampling adequacy for 
+        each manifest variable here.
+        * **Scree plot** - This shows the sum of squared loadings (i.e., eigenvalue) per additional factor included.
+        * **Correlations** - This shows the pairwise correlations for the selected manifest variables.
+        
+        **Goodness-of-fit** and **Correlations** should help you assess the global or overall quality of fit of a 
+        factor model. On the other hand, **Communalities and adequacies** can help you identify which variables to 
+        keep while **Scree plot** can help you detmrine the number of factors to include.
+        """)
+
+        st.image("./images/steps/step_5_1.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Fitting a factor model"):
+        st.markdown("""
+        Fit at least one factor model. You can input the model's name, the number of factors, the type of correlation 
+        to use, the manifest variables included in the model, the estimation method, the rotation, and the prior 
+        matrix.
+        """)
+
+        st.image("./images/steps/step_6_1.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Viewing factor models"):
+        st.markdown("""
+        In the *Factor Models* panel under *Menu*, click *View* to see your saved models. Here, you can check each 
+        model's fit details, correlation matrix, prior matrix (if present), loadings, communalities, factor scores, 
+        factor correlations, and more. You can also delete models here.
+        """)
+
+        st.image("./images/steps/step_7_1.jpeg", width="stretch")
+        st.image("./images/steps/step_7_2.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Using the dashboard"):
+        st.markdown("""
+        Head on over to the *Dashboard* tab, which is where most of the information and visualizations that you need 
+        for assessing a factor model can be found. Select the model that you want to examine. There are several 
+        sections here:
+        * **Fit details** - This shows information about the model's fit details (e.g., rotation, correlation type).
+        * **Communalities and adequacies** - This shows the communality and adequacy for each manifest variable included 
+        in the factor model.
+        * **Interpretability plot** - This shows the scatterplot, with a locally weighted scatterplot 
+        smoothing (LOWESS) curve, on semantic (or prior) similarity vs loading similarity. This visualization can 
+        tell you how much the loading similarities agree with the semantic (or prior) similarities. The V-index is 
+        displayed below the title of the plot.
+        * **Factor breakdown** - This shows how much of each tag each factor is composed of, in terms of sum of squared 
+        loadings. This can help you interpret the factors based on the tags that you have provided (if any). For 
+        example, if Factor 1's sum of squared loadings comes mostly from Tag A, then you can associate the meaning of 
+        Factor 1 with Tag A.
+        * **Factor loadings** - This shows you the empirical distribution (in terms of the cumulatie distribution 
+        function) of the absolute loadings, both for each factor and for the whole model. You can use the distribution 
+        plots to asses which threshold for the absolute loadings make sense. Below the distribution plot, the factor 
+        loading matrix, presented as a heatmap, can be seen. You can choose whether to show the exact loadings or the 
+        binarized loadings. This will help you define what each factor is.
+        * **Loadings comparison** - The plot here allows you to compare the loadings across manifest variables or 
+        across factors. For example, when comparing across factors, if two lines are coincident or parallel, then 
+        the corresponding factors are similar (in terms of definition).
+        * **Factor cross-loadings** - This network graph tells you how much the factors overlap. For example, if the 
+        "network" of Factor 1 shares multiple nodes with the "network" of Factor 2, there are multiple cross-loadings 
+        (i.e., significant overlap) between the two factors.
+        * **Interpretation** - You can generate automatic interpretations for factor models (at a factor-level) here 
+        using the selected large language model (you can choose which large language model to use in the *NLP Models* 
+        panel under *Menu*).
+        """)
+
+        st.space("xxsmall")
+
+        col_1, col_2 = st.columns(2)
+        with col_1:
+            st.image("./images/steps/step_8_1.jpeg", width="stretch")
+        with col_2:
+            st.image("./images/steps/step_8_2.jpeg", width="stretch")
+
+        col_1, col_2 = st.columns(2)
+        with col_1:
+            st.image("./images/steps/step_8_3.jpeg", width="stretch")
+        with col_2:
+            st.image("./images/steps/step_8_4.jpeg", width="stretch")
+
+        col_1, col_2 = st.columns(2)
+        with col_1:
+            st.image("./images/steps/step_8_5.jpeg", width="stretch")
+        with col_2:
+            st.image("./images/steps/step_8_6.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Generating interpretations"):
+        st.markdown("""
+        In the *Interpretation* section of the *Dashboard* tab, you can easily generate an automated interpretation 
+        for the factor model using the large language model selected (shown in the *NLP Models* panel under *Menu*). 
+        You can choose which model to use and with which temperature to generate, and even re-generate multiple 
+        interpretations.
+        """)
+
+        st.image("./images/steps/step_9_1.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step {step}: Comparing models"):
+        st.markdown("""
+        You can select up to two factor models simultaneously in *Dashboard*, which allows you to easily compare 
+        and contrast factor models, and ultimately select the final factor model. The first model will be shown 
+        on the left while the second one will be shown on the right.
+        """)
+
+        st.image("./images/steps/step_10_1.jpeg", width="stretch")
+
+    step += 1
+    with st.expander(f"Step: {step} Downloading results"):
+        st.markdown("""
+        Almost all tables and visualizations can be downloaded from the app. Some have dedicated download buttons 
+        as shown below.
+        """)
+
+        st.image("./images/steps/step_11_1.jpeg", width="stretch")
+
+        st.markdown("""
+        For most visualizations, you can hover at the top right of the chart and click the camera icon. This will 
+        download the chart as a PNG file. For tables, you can also over at the top right and click the download icon 
+        to download them as CSV files. 
+        """)
+
+        st.image("./images/steps/step_11_2.jpeg", width="stretch")
+        st.image("./images/steps/step_11_3.jpeg", width="stretch")
+
+        st.markdown("""
+        Finally, for a few visualizations, you can download them by right-cliking and clicking *Save image as*.
+        """)
+
+        st.image("./images/steps/step_11_4.png", width="stretch")
+
+
 # Fit factor model
 if st.session_state.FIT_MODEL == "Yes":
     st.session_state.SHOW_FIT_DIALOG = True
@@ -340,7 +673,7 @@ if st.session_state.CALCULATE_POLY_CORR == "Yes":
     st.session_state.CALCULATE_POLY_CORR = "No"
 
 
-@st.dialog(":material/calculate: Calculating polychoric correlations", width="medium", dismissible=False)
+@st.dialog(":material/calculate: Calculating polychoric correlations", dismissible=False)
 def calculate_poly_corr():
     if not st.session_state.get("POLY_DONE", False):
         suceeded = True
@@ -822,9 +1155,9 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
 
 @st.dialog(":material/upload: Upload dataset", width="medium")
 def upload_data_dialog():
-    st.badge(":material/info: Ensure that you have read *Getting started* in the *Overview* tab before "
-             "proceeding.",
-             color="blue")
+    st.info("""
+    :material/info: Ensure that you have read *Getting started* in the *Overview* tab before proceeding.
+    """)
     df_data = None
     data_file_name = None
     is_likert = None
@@ -1043,80 +1376,258 @@ def view_tags_dialog():
 
 @st.dialog(":material/analytics: View basic stats", width="large")
 def view_data_dialog():
-    with st.expander("Raw data"):
-        st.dataframe(st.session_state.DATA, key="raw_data_df")
-        st.space()
 
-    with st.expander("Associated statement for each variable"):
-        if st.session_state.STATEMENTS is None:
-            st.write("Associated statements are not available / were not uploaded.")
-        else:
-            var_statement = pd.DataFrame(
-                {
-                    "Variable": [f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
-                    "Statement": st.session_state.STATEMENTS,
-                    "Mean": [
-                        st.session_state.DATA[col].mean() for col in st.session_state.DATA.columns
-                    ]
-                }
-            )
-            st.dataframe(var_statement, key="var_statement_df")
-        st.space()
+    st.info("""
+    :material/info: You can download almost all tables (as CSV) and charts (as CSV or PNG) in this app, 
+    including the ones below.
+    """)
 
-    with st.expander("Summary statistics"):
-        st.dataframe(st.session_state.DATA.describe(), key="describe_data_df")
-        st.space()
+    col_1, col_2 = st.columns(2)
+    with col_1:
+        st.download_button("Download raw data as CSV file", st.session_state.DATA.to_csv(),
+                           file_name="raw_data.csv", width="stretch", type="primary")
+    with col_2:
+        st.download_button("Download associated statements", st.session_state.STATEMENTS_DF.to_csv(),
+                           file_name="associated_statements.csv", width="stretch")
 
-    with st.expander("Correlation matrix"):
-        stats_corr_type = st.selectbox(
-            "Correlation type",
-            options=["Pearson", "Polychoric"] if st.session_state.LARGEST_POLY_CORR is not None else ["Pearson"],
+    st.space("xxsmall")
+
+    st.subheader("Summary statistics")
+    st.caption(f"Sample size = **{st.session_state.DATA.shape[0]:,}**")
+    df_summary = pd.DataFrame(
+        {
+            "Variable": [f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
+            "Statement": st.session_state.STATEMENTS,
+            "Mean": [
+                st.session_state.DATA[col].mean() for col in st.session_state.DATA.columns
+            ],
+            "SD": [
+                st.session_state.DATA[col].std() for col in st.session_state.DATA.columns
+            ],
+            "Median": [
+                st.session_state.DATA[col].median() for col in st.session_state.DATA.columns
+            ],
+            "IQR": [
+                st.session_state.DATA[col].quantile(0.75) - st.session_state.DATA[col].quantile(0.25)
+                for col in st.session_state.DATA.columns
+            ],
+            "Min": [
+                st.session_state.DATA[col].min() for col in st.session_state.DATA.columns
+            ],
+            "Max": [
+                st.session_state.DATA[col].max() for col in st.session_state.DATA.columns
+            ],
+            "Skew": [
+                st.session_state.DATA[col].skew() for col in st.session_state.DATA.columns
+            ],
+            "Kurtosis": [
+                st.session_state.DATA[col].kurtosis() for col in st.session_state.DATA.columns
+            ]
+        }
+    )
+    st.dataframe(df_summary, key="df_summary", hide_index=True)
+
+    st.space("xxsmall")
+
+    st.subheader("Hypothesis testing")
+    st.caption("Central tendency")
+
+    col_1, col_2, col_3, col_4, col_5 = st.columns(5)
+    with col_1:
+        parameter_to_test = st.selectbox(
+            "Parameter of interest",
+            options=["Mean", "Median"],
             index=0,
-            key="stats_corr_type"
+            key="test_param"
         )
-        corr_mat = st.session_state.DATA.corr() if stats_corr_type == "Pearson" else st.session_state.LARGEST_POLY_CORR
-        fig_corr = px.imshow(
-            corr_mat,
-            text_auto="0.3f",
-            aspect="auto",
-            color_continuous_scale=continuous_diverging_color_palette,
-            zmin=-1, zmax=1,
-            title=f"Sample Correlation Matrix ({stats_corr_type})"
+    with col_2:
+        variable_to_test = st.selectbox(
+            "Variable to test",
+            options=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])],
+            index=0,
+            key="test_var"
         )
-        fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-        fig_corr.update_yaxes(tickmode="linear", dtick=1)
-        fig_corr.update_layout(
-            height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
+    with col_3:
+        direction_to_test = st.selectbox(
+            "Direction",
+            options=[">", "<", "≠"],
+            index=0,
+            key="value_direction"
         )
-        st.plotly_chart(fig_corr, width="stretch", key="basic_stats_fig_corr")
-        st.dataframe(corr_mat, key="corr_mat_df")
-        st.space()
+    with col_4:
+        value_to_test = st.number_input(
+            "Value",
+            value=0.0,
+            key="test_value",
+        )
+    with col_5:
+        sig_level = st.selectbox(
+            "Level of significance",
+            options=[0.01, 0.05, 0.1],
+            index=1,
+            key="test_alpha"
+        )
 
-    with st.expander("Semantic similarity matrix"):
-        if st.session_state.STATEMENTS is None:
-            st.write("Associated statements are not available / were not uploaded.")
+    alternatives = {
+        ">": "greater",
+        "<": "less",
+        "≠": "two-sided"
+    }
+
+    test_stat = None
+    p_val = None
+    test_done = None
+
+    if parameter_to_test == "Mean":
+        test_result = stats.ttest_1samp(
+            st.session_state.DATA[variable_to_test],
+            value_to_test,
+            alternative=alternatives[direction_to_test]
+        )
+        test_stat = test_result.statistic
+        p_val = test_result.pvalue
+        test_done = "one-sample t-test for the mean"
+    elif parameter_to_test == "Median":
+        test_stat, p_val = sign_test(st.session_state.DATA[variable_to_test], value_to_test)
+        test_done = "sign test"
+
+    test_stat = np.round(test_stat, 4)
+    p_val = np.round(p_val, 4)
+    decision = "enough" if p_val <= float(sig_level) else "not enough"
+
+    st.success(f"""
+    Based on the **{test_done}**, the test statistic is {test_stat}, with a **p-value of {p_val}**. At {sig_level} 
+    level of significance, there is {decision} evidence to reject the null hypothesis that the population 
+    {parameter_to_test.lower()} is {value_to_test}.
+    """)
+
+    st.caption("Sphericity")
+    col_1, col_2 = st.columns([4, 1])
+    with col_1:
+        variables_to_test = st.multiselect(
+            "Variables to test",
+            options=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])],
+            key="test_vars_to_test",
+            help="Note that this test applies only to Pearson correlations."
+        )
+    with col_2:
+        sig_level = st.selectbox(
+            "Level of significance",
+            options=[0.01, 0.05, 0.1],
+            index=1,
+            key="test_alpha_2"
+        )
+
+    if len(variables_to_test) < 2:
+        st.warning("Choose at least two variables.")
+    else:
+        test_stat, p_val = InterpretableFA(st.session_state.DATA[variables_to_test]).sphericity
+        test_stat = np.round(test_stat, 4)
+        p_val = np.round(p_val, 4)
+        decision = "enough" if p_val <= float(sig_level) else "not enough"
+
+        st.success(f"""
+        Based on **Bartlett's test for sphericity**, the test statistic is {test_stat}, with a **p-value of {p_val}**. 
+        At {sig_level} level of significance, there is {decision} evidence to reject the null hypothesis that the 
+        correlation matrix is an identity matrix (i.e., all pairwise correlations are 0).
+        """)
+
+    st.space("xxsmall")
+
+    st.subheader("Distribution")
+    x_to_show = st.selectbox(
+        "Manifest variable",
+        options=[f"X{i + 1}" for i in range(st.session_state.DATA.shape[1])],
+        index=0
+    )
+    fig_x_dist = px.histogram(
+        x=st.session_state.DATA[x_to_show],
+        color_discrete_sequence=discrete_colors,
+        labels={"x": "Value"},
+        title=""
+    )
+    fig_x_dist.update_layout(
+        margin=dict(t=20, b=20, r=20, l=20),
+        height=300,
+        bargap=0.1,
+        yaxis=dict(
+            title="Count",
+            visible=True,
+            showticklabels=True,
+            showline=show_y_line,
+            showgrid=show_y_grid,
+            zeroline=False
+        ),
+        xaxis=dict(
+            visible=True,
+            showticklabels=True,
+            showline=show_x_line,
+            showgrid=show_x_grid,
+            zeroline=False
+        )
+    )
+    st.plotly_chart(fig_x_dist, width="stretch", key=f"basic_stats_dist_{x_to_show}")
+
+    st.subheader("Correlation matrix")
+    if st.session_state.LARGEST_POLY_CORR is None:
+        st.info(":material/info: If you wish to use polychoric correlations, re-load the dataset and choose the "
+                "option to calculate polychoric correlations.")
+    stats_corr_type = st.selectbox(
+        "Correlation type",
+        options=["Pearson", "Polychoric"] if st.session_state.LARGEST_POLY_CORR is not None else ["Pearson"],
+        index=0,
+        key="stats_corr_type"
+    )
+    corr_mat = st.session_state.DATA.corr() if stats_corr_type == "Pearson" else st.session_state.LARGEST_POLY_CORR
+    fig_corr = px.imshow(
+        corr_mat,
+        text_auto="0.3f",
+        aspect="auto",
+        color_continuous_scale=continuous_diverging_color_palette,
+        zmin=-1, zmax=1,
+        title=""
+    )
+    fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+    fig_corr.update_yaxes(tickmode="linear", dtick=1)
+    fig_corr.update_layout(
+        margin=dict(l=20, r=20, t=20, b=20),
+        height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
+    )
+    st.plotly_chart(fig_corr, width="stretch", key="basic_stats_fig_corr")
+    st.download_button("Download correlation matrix as CSV file", corr_mat.to_csv(),
+                       file_name="corr_mat.csv", width="stretch")
+
+    st.space("xxsmall")
+
+    st.subheader("Semantic similarity matrix")
+    if st.session_state.STATEMENTS is None:
+        st.warning("Associated statements are not available / were not uploaded.")
+    else:
+        embeddings = st.session_state.EMBEDDINGS
+        if embeddings is not None:
+            semantic_similarity_mat = st.session_state.SEMANTIC_SIMILARITY_MATRIX
+            fig_semantic = px.imshow(
+                semantic_similarity_mat,
+                text_auto="0.3f",
+                aspect="auto",
+                color_continuous_scale=continuous_sequential_color_palette,
+                zmin=0, zmax=1,
+                title=""
+            )
+            fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
+            fig_semantic.update_yaxes(tickmode="linear", dtick=1)
+            fig_semantic.update_layout(
+                margin=dict(l=20, r=20, t=20, b=20),
+                height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
+            )
+            st.plotly_chart(fig_semantic, width="stretch", key="basic_stats_fig_semantic")
+
+            st.download_button("Download semantic similarity matrix as CSV file",
+                               semantic_similarity_mat.to_csv(), file_name="semantic_sim_mat.csv", width="stretch")
         else:
-            embeddings = st.session_state.EMBEDDINGS
-            if embeddings is not None:
-                semantic_similarity_mat = st.session_state.SEMANTIC_SIMILARITY_MATRIX
-                fig_semantic = px.imshow(
-                    semantic_similarity_mat,
-                    text_auto="0.3f",
-                    aspect="auto",
-                    color_continuous_scale=continuous_sequential_color_palette,
-                    zmin=0, zmax=1,
-                    title="Semantic Similarity Matrix"
-                )
-                fig_semantic.update_xaxes(side="bottom", tickmode="linear", dtick=1)
-                fig_semantic.update_yaxes(tickmode="linear", dtick=1)
-                fig_semantic.update_layout(
-                    height=min(900, max(50 * st.session_state.DATA.shape[1], 300))
-                )
-                st.plotly_chart(fig_semantic, width="stretch", key="basic_stats_fig_semantic")
-                st.dataframe(semantic_similarity_mat, key="semantic_mat_df")
-            else:
-                st.write(":hourglass_flowing_sand: Loading...")
-        st.space()
+            st.info("Loading...")
+
+    st.space("xxsmall")
 
 
 @st.dialog(":material/add_chart: Fit a new factor model", width="large", dismissible=False)
@@ -1700,6 +2211,14 @@ with st.sidebar.expander("NLP Models", icon=":material/graph_3:", expanded=True)
     else:
         st.error("Failed to connect. Please refresh.")
 
+    if st.button("Reload models", type="secondary", width="stretch"):
+        st.markdown(
+            """
+            <meta http-equiv="refresh" content="0">
+            """,
+            unsafe_allow_html=True
+        )
+
 with st.sidebar.expander("Data", icon=":material/dataset:", expanded=True):
     if st.session_state.DATA is None:
         st.warning("You have not uploaded a dataset yet.")
@@ -1952,7 +2471,7 @@ with tab_overview:
 
         st.markdown("""
         FactorFlow is an interactive tool intended to help practitioners perform exploratory factor
-        analysis better. Using this tool, users can upload their dataset, fit various factor models, and 
+        analysis better. Using this app, users can upload their dataset, fit various factor models, and 
         perform factor rotations. It comes with the following key features:
         """)
         col_1, col_2 = st.columns([2, 1])
@@ -1971,47 +2490,18 @@ with tab_overview:
                       speed=2, reverse=False, loop=True, quality="low", height=275, key="rotation_lottie")
 
         st.markdown("""              
-        Using this tool, practitioners can easily perform exploratory factor analysis and even leverage semantic or 
+        Practitioners can easily perform exploratory factor analysis and even leverage semantic or 
         arbitrary information for analyzing factor models. **Interact with the sample visualization above to see how 
         the plot changes depending on how interpretable the factor model is!**
         """)
 
-        _, col_2, _ = st.columns([1, 5, 1])
+        st.space("xxsmall")
+
+        _, col_2, _ = st.columns(3)
         with col_2:
-            fig_sample_v_plot = px.scatter(
-                st.session_state.SAMPLE_V_DATA,
-                x="Prior",
-                y="Loading",
-                animation_frame="Quality",
-                animation_group="Group",
-                trendline="lowess",
-                color_discrete_sequence=discrete_colors
-            )
-            fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 2000
-            fig_sample_v_plot.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 1000
-            fig_sample_v_plot.update_layout(
-                xaxis_title="Prior Similarity",
-                yaxis_title="Semantic Similarity",
-                margin=dict(l=50, r=50, t=50, b=50),
-                title="Factor Model Interpretability Plot"
-            )
-            fig_sample_v_plot.update_layout(
-                yaxis=dict(
-                    visible=True,
-                    showticklabels=True,
-                    showline=show_y_line,
-                    showgrid=show_y_grid,
-                    zeroline=False
-                ),
-                xaxis=dict(
-                    visible=True,
-                    showticklabels=True,
-                    showline=show_x_line,
-                    showgrid=show_x_grid,
-                    zeroline=False
-                )
-            )
-            st.plotly_chart(fig_sample_v_plot, width="stretch", key="sample_v_plot")
+            st.button("See use cases and examples", width="stretch", type="primary", on_click=use_cases_dialog)
+
+        st.space("xxsmall")
 
     with st.expander("Getting started", True, icon=":material/rocket_launch:"):
         st.markdown("""
@@ -2063,7 +2553,7 @@ with tab_overview:
             """)
         elif getting_started_step == 1:
             st.markdown("""
-            Upload your dataset in the *Dataset* section of the *Menu*. You can upload three kinds of files: 
+            Upload your dataset in the *Data* section of the *Menu*. You can upload three kinds of files: 
             """)
             upload_sub_tab_1, upload_sub_tab_2, upload_sub_tab_3 = st.tabs([
                 "A. Main dataset",
@@ -2105,7 +2595,7 @@ with tab_overview:
                 st.markdown("""
                 ###### The tags associated with each variable (manual or CSV file). 
                 You can add tags to each variable or statement to help visualize interpretability. 
-                To do so, click *Tags* under *Dataset*. Then, either upload manually or an appropriate CSV file. 
+                To do so, click *Tags* under *Data*. Then, either upload manually or an appropriate CSV file. 
                 This is optional.
                 
                 The CSV file must have two columns. The first column must contain the variables 
@@ -2127,7 +2617,7 @@ with tab_overview:
             Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
             communalities or you might want to determine the optimal number of factors. There is also an interactive 
             visualizer available if you want to manually explore the raw dataset yourself. Otherwise, you can go to 
-            *Basic stats* under *Dataset* in the menu to see some readily available summary statistics.
+            *Stats* under *Data* in the menu to see some readily available summary statistics.
             """)
         elif getting_started_step == 3:
             st.markdown("""
@@ -2158,6 +2648,12 @@ with tab_overview:
             chart, where you can find the download button. For some others, you can right-click on the chart and 
             click "Save image as..." or "Copy image".
             """)
+
+        _, col_2, _ = st.columns(3)
+        with col_2:
+            st.button("View detailed guide", width="stretch", type="primary", on_click=guide_dialog)
+
+        st.space("xxsmall")
 
     with st.expander("Notes", True, icon=":material/pinboard:", key="notes_expander"):
         st.markdown("""
@@ -2234,9 +2730,10 @@ with tab_diagnostics:
                     st.error(f"The number of factors is too large, with computed degrees of "
                              f"freedom {np.round(df_model, 4)}.")
                 else:
-                    st.badge(":material/info: Note that the p-value is applicable only when "
-                             "maximum likelihood estimation is used.",
-                             color="blue")
+                    st.info("""
+                    :material/info: Note that the p-value is applicable only when maximum likelihood estimation 
+                    is used.
+                    """)
 
                     if pd.isna(chisq_model):
                         chisq_model = "Not Applicable"
@@ -2328,6 +2825,12 @@ with tab_diagnostics:
                 st.space()
 
             with st.expander("Correlations"):
+                if st.session_state.LARGEST_POLY_CORR is None:
+                    st.info(
+                        ":material/info: If you wish to use polychoric correlations, re-load the dataset and "
+                        "choose the option to calculate polychoric correlations."
+                    )
+
                 diagnostics_corr_type = st.selectbox(
                     "Correlation type",
                     options=(["Pearson", "Polychoric"] if st.session_state.LARGEST_POLY_CORR is not None
@@ -2339,6 +2842,11 @@ with tab_diagnostics:
                 final_corr_type = "Pearson"
                 if diagnostics_corr_type == "Pearson":
                     corr_mat = data_subset.corr()
+                    _, p_val = InterpretableFA(st.session_state.DATA[manifest_vars]).sphericity
+                    p_val = np.round(p_val, 4)
+                    st.success(f"""
+                    The p-value for Bartlett's test for sphericity is {p_val}.
+                    """)
                 else:
                     if st.session_state.LARGEST_POLY_CORR is not None:
                         corr_mat = st.session_state.LARGEST_POLY_CORR.loc[manifest_vars, manifest_vars]
@@ -2355,17 +2863,20 @@ with tab_diagnostics:
                 fig_corr.update_xaxes(side="bottom", tickmode="linear", dtick=1)
                 fig_corr.update_yaxes(tickmode="linear", dtick=1)
                 fig_corr.update_layout(
+                    margin=dict(t=35, b=20, r=20, l=20),
                     height=min(650, max(25 * st.session_state.DATA.shape[1], 300))
                 )
                 st.plotly_chart(fig_corr, width="stretch", key="fig_corr_diag")
 
 with tab_dashboard:
-    st.badge(":material/info: If your screen is not wide enough for the horizontal layout, "
-             "consider temporarily hiding the *Menu* sidebar. You can also hide or show columns in tables.",
-             color="blue")
     if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0:
         st.warning("Fit a factor model first.")
     else:
+        st.info("""
+        :material/info: If your screen is not wide enough for the horizontal layout, consider temporarily hiding the 
+        *Menu* sidebar. You can also hide or show columns in tables.
+        """)
+
         col_1, _ = st.columns(2)
         with col_1:
             selected_models = st.multiselect(
@@ -2672,7 +3183,7 @@ with tab_dashboard:
                         help="""
                         This discretizes the loadings such that a manifest variable is "included" in the 
                         factor (and its interpretation) if and only if the absolute value of the loading 
-                        is at least the threshold. If the value is 1, then the variable is "included". Otherwise, 
+                        is at least the threshold. If the value is 1 or -1, then the variable is "included". Otherwise, 
                         it is not.
                         """, key=f"{model_name}_thresh_slider"
                     )
