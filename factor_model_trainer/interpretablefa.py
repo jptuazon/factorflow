@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# interpretablefa v6.0.9
+# interpretablefa v6.1.0
 # https://pypi.org/project/interpretablefa/
 
 import math
@@ -478,7 +478,7 @@ class InterpretableFA:
                     else:
                         self.data_.iloc[col, row] = val
                     if row == col:
-                        if not math.isclose(val, 1):
+                        if abs(val - 1.0) > 0.001:
                             raise ValueError("the diagonal entries of the data correlation matrix must be 1")
                         else:
                             val = 1
