@@ -1,7 +1,9 @@
+import math
 import numpy as np
+import pandas as pd
 from factor_analyzer import FactorAnalyzer
 from scipy.stats import chi2 as chi2_dist
-from scipy.stats import norm, multivariate_normal
+from scipy.stats import norm, multivariate_normal, kendalltau
 from scipy.optimize import minimize_scalar
 import warnings
 
@@ -185,3 +187,56 @@ def get_polychoric_matrix(data_arr):
             poly_corr_mat[col, row] = corr
 
     return poly_corr_mat
+
+
+def get_multiset(prior_matrix, loading_sim_matrix, with_labels=False):
+    if not isinstance(prior_matrix, np.ndarray):
+        raise TypeError("prior_matrix must be a numpy array")
+    if not isinstance(loading_sim_matrix, np.ndarray):
+        raise TypeError("loading_sim_matrix must be a numpy array")
+    if prior_matrix.shape != loading_sim_matrix.shape:
+        raise ValueError("prior_matrix and loading_sim_matrix must have the same dimensions")
+
+    num_of_vars = prior_matrix.shape[0]
+    x = []
+    y = []
+    var_1 = []
+    var_2 = []
+    for i in range(num_of_vars):
+        for j in range(i):
+            if not pd.isna(prior_matrix[i, j]):
+                if with_labels:
+                    var_1.append(f"X{i + 1}")
+                    var_2.append(f"X{j + 1}")
+
+                x.append(prior_matrix[i, j])
+                y.append(loading_sim_matrix[i, j])
+    x = np.array(x)
+    y = np.array(y)
+
+    if with_labels:
+        return x, y, var_1, var_2
+    else:
+        return x, y
+
+
+def get_v_index(prior_matrix, loading_sim_matrix):
+    if not isinstance(prior_matrix, np.ndarray):
+        raise TypeError("prior_matrix must be a numpy array")
+    if not isinstance(loading_sim_matrix, np.ndarray):
+        raise TypeError("loading_sim_matrix must be a numpy array")
+    if prior_matrix.shape != loading_sim_matrix.shape:
+        raise ValueError("prior_matrix and loading_sim_matrix must have the same dimensions")
+
+    x, y = get_multiset(prior_matrix, loading_sim_matrix)
+    n = len(x)
+
+    theta = n * np.sum(x * y) - np.sum(x) * np.sum(y)
+    theta = theta / (n * np.sum(x ** 2) - (np.sum(x)) ** 2)
+    theta = (1 / math.pi) * np.arctan(theta) + 1 / 2
+
+    tau = (1 / 2) * (kendalltau(x, y, variant="b").statistic + 1)
+
+    v_index = math.sqrt(tau * theta)
+
+    return v_index
