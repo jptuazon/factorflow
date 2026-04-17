@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.3.0
+# FactorFlow V3.5.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import streamlit as st
 from groq import Groq
-from factor_model_trainer import InterpretableFA, get_chi_sq, get_df, polychoric
+from factor_model_trainer import InterpretableFA, get_chi_sq, get_df, polychoric, get_multiset, get_v_index
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
@@ -36,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.3.0"
+VERSION_NUMBER = "3.5.0"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -273,7 +273,7 @@ def use_cases_dialog():
     with col_1:
         st.image("./images/steps/step_6_1.jpeg", width="stretch")
     with col_2:
-        st.image("./images/steps/step_7_2.jpeg", width="stretch")
+        st.image("./images/steps/step_8_6.jpeg", width="stretch")
 
     col_1, col_2 = st.columns(2)
     with col_1:
@@ -297,7 +297,7 @@ def use_cases_dialog():
     with col_1:
         st.image("./images/steps/step_5_1.jpeg", width="stretch")
     with col_2:
-        st.image("./images/steps/step_8_6.jpeg", width="stretch")
+        st.image("./images/steps/step_7_2.jpeg", width="stretch")
 
 
 # Specific how-to
@@ -552,7 +552,7 @@ def guide_dialog():
 
         st.markdown("""
         For most visualizations, you can hover at the top right of the chart and click the camera icon. This will 
-        download the chart as a PNG file. For tables, you can also over at the top right and click the download icon 
+        download the chart as a PNG file. For tables, you can also hover at the top right and click the download icon 
         to download them as CSV files. 
         """)
 
@@ -1679,7 +1679,7 @@ def fit_model_dialog():
 
     if len(manifest_vars) >= 2 and get_df(len(manifest_vars), number_of_factors) < 0:
         factor_count_warning.warning("""
-        Note that the number of manifest variables is too large. The degrees of freedom is negative.
+        Note that the number of factors is too large. The degrees of freedom is negative.
         """)
 
     col_1, col_2, col_3 = st.columns(3)
@@ -2499,7 +2499,7 @@ with tab_overview:
 
         _, col_2, _ = st.columns(3)
         with col_2:
-            st.button("See use cases and examples", width="stretch", type="primary", on_click=use_cases_dialog)
+            st.button("See use cases and sample outputs", width="stretch", type="primary", on_click=use_cases_dialog)
 
         st.space("xxsmall")
 
@@ -2890,12 +2890,16 @@ with tab_dashboard:
         if len(selected_models) == 0:
             st.warning("Choose at least one model.")
         else:
-            multisets = [
-                st.session_state.FACTOR_MODELS[model_name].generate_multiset(model_name)
-                for model_name in selected_models
-            ]
             model_analyses = [
                 st.session_state.FACTOR_MODELS[model_name].analyze_model(model_name)
+                for model_name in selected_models
+            ]
+            prior_matrices = [
+                st.session_state.FACTOR_MODELS[model_name].models[model_name].prior_
+                for model_name in selected_models
+            ]
+            loading_similarity_matrices = [
+                st.session_state.FACTOR_MODELS[model_name].calculate_loading_similarity(model_name)
                 for model_name in selected_models
             ]
 
@@ -3007,7 +3011,6 @@ with tab_dashboard:
             for i in range(len(selected_models)):
                 with cols[i]:
                     model_name = selected_models[i]
-                    multiset = multisets[i]
 
                     st.subheader(":material/psychology: Interpretability plot")
                     st.space()
@@ -3016,42 +3019,119 @@ with tab_dashboard:
                                        if st.session_state.FIT_DETAILS[model_name]["prior"] == "Semantics"
                                        else "Prior Similarity")
 
-                    if multiset is None:
+                    if st.session_state.FIT_DETAILS[model_name]["prior"] == "None":
                         st.warning("No prior matrix was supplied for this model.")
                     else:
+                        prior_matrix = prior_matrices[i]
+                        loading_similarity_matrix = loading_similarity_matrices[i]
+
+                        all_vars = st.session_state.FIT_DETAILS[model_name]["manifest_vars"]
+
+                        df_prior_matrix = pd.DataFrame(
+                            prior_matrix,
+                            columns=all_vars,
+                            index=all_vars
+                        )
+
+                        df_loading_sim_matrix = pd.DataFrame(
+                            loading_similarity_matrix,
+                            columns=all_vars,
+                            index=all_vars
+                        )
+
+                        worst_var = None
+                        best_v = 0
+                        for manifest_var in all_vars:
+                            curr_vars = all_vars.copy()
+                            curr_vars.remove(manifest_var)
+                            curr_prior_matrix = df_prior_matrix[curr_vars].to_numpy()
+                            curr_loading_sim_matrix = df_loading_sim_matrix[curr_vars].to_numpy()
+                            curr_v_index = get_v_index(curr_prior_matrix, curr_loading_sim_matrix)
+
+                            if curr_v_index > best_v:
+                                worst_var = manifest_var
+                                best_v = curr_v_index
+
+                        p, l, v_1, v_2 = get_multiset(prior_matrix, loading_similarity_matrix, True)
+                        c = []
+                        for pair in range(len(v_1)):
+                            if v_1[pair] == worst_var or v_2[pair] == worst_var:
+                                c.append(f"From {worst_var}")
+                            else:
+                                c.append(f"Not from {worst_var}")
+
                         df_multiset = pd.DataFrame({
-                            similarity_type: [item[0] for item in multiset],
-                            "Loading Similarity": [item[1] for item in multiset]
+                            similarity_type: p,
+                            "Loading Similarity": l,
+                            "Source": c
                         })
+
+                        v_index = st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)
+                        gap = np.round(best_v - v_index, 4)
+
+                        st.caption(f"""
+                        The V-index is about {np.round(v_index, 4)}. Out of all manifest variables, 
+                        {worst_var} has the most inconsistent loadings relative to the expected similarities.
+                        """)
+
+                        show_worst = st.checkbox("Show inconsistent points?", key=f"{model_name}_show_inconsistent")
+
                         lowess_failed = False
                         try:
                             with warnings.catch_warnings(record=True) as w:
-                                fig_v_plot = px.scatter(
-                                    df_multiset,
-                                    x=similarity_type,
-                                    y="Loading Similarity",
-                                    trendline="lowess",
-                                    color_discrete_sequence=discrete_colors,
-                                    title=f"{similarity_type} vs Loading Similarity",
-                                    subtitle=f"""
-                                    V = {st.session_state.FACTOR_MODELS[
-                                        model_name
-                                    ].calculate_v_index(model_name)}
-                                    """
-                                )
+                                if show_worst:
+                                    fig_v_plot = px.scatter(
+                                        df_multiset,
+                                        x=similarity_type,
+                                        y="Loading Similarity",
+                                        color="Source",
+                                        trendline="lowess",
+                                        color_discrete_sequence=discrete_colors,
+                                        opacity=0.5,
+                                        category_orders={
+                                            "Source": [f"Not from {worst_var}", f"From {worst_var}"]
+                                        },
+                                        title=f"{similarity_type} vs Loading Similarity"
+                                    )
+                                else:
+                                    fig_v_plot = px.scatter(
+                                        df_multiset,
+                                        x=similarity_type,
+                                        y="Loading Similarity",
+                                        trendline="lowess",
+                                        color_discrete_sequence=discrete_colors,
+                                        opacity=0.5,
+                                        title=f"{similarity_type} vs Loading Similarity"
+                                    )
 
                                 if any("invalid value encountered in divide" in str(warn.message) for warn in w):
                                     raise RuntimeWarning("Lowess failed to fit.")
                         except RuntimeWarning:
-                            fig_v_plot = px.scatter(
-                                df_multiset,
-                                x=similarity_type,
-                                y="Loading Similarity",
-                                trendline="ols",
-                                title=f"{similarity_type} vs Loading Similarity",
-                                subtitle=f"V = "
-                                         f"{st.session_state.FACTOR_MODELS[model_name].calculate_v_index(model_name)}"
-                            )
+                            if show_worst:
+                                fig_v_plot = px.scatter(
+                                    df_multiset,
+                                    x=similarity_type,
+                                    y="Loading Similarity",
+                                    color="Source",
+                                    trendline="ols",
+                                    color_discrete_sequence=discrete_colors,
+                                    opacity=0.5,
+                                    category_orders={
+                                        "Source": [f"Not from {worst_var}", f"From {worst_var}"]
+                                    },
+                                    title=f"{similarity_type} vs Loading Similarity"
+                                )
+                            else:
+                                fig_v_plot = px.scatter(
+                                    df_multiset,
+                                    x=similarity_type,
+                                    y="Loading Similarity",
+                                    trendline="ols",
+                                    color_discrete_sequence=discrete_colors,
+                                    opacity=0.5,
+                                    title=f"{similarity_type} vs Loading Similarity"
+                                )
+
                             lowess_failed = True
 
                         fig_v_plot.update_layout(
@@ -3068,8 +3148,16 @@ with tab_dashboard:
                                 showline=show_x_line,
                                 showgrid=show_x_grid,
                                 zeroline=False
+                            ),
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=-0.3,
+                                xanchor="center",
+                                x=0.2
                             )
                         )
+                        fig_v_plot.update_traces(line=dict(width=3))
                         st.plotly_chart(fig_v_plot, width="stretch", key=f"{model_name}_v_plot")
                         if lowess_failed:
                             st.warning("Lowess failed to fit. Defaulted to OLS.")
