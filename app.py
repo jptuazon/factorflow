@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.5.0
+# FactorFlow V3.5.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -36,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.5.0"
+VERSION_NUMBER = "3.5.1"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -2470,16 +2470,17 @@ with tab_overview:
     with st.expander("Description", True, icon=":material/description:"):
 
         st.markdown("""
-        FactorFlow is an interactive tool intended to help practitioners perform exploratory factor
-        analysis better. Using this app, users can upload their dataset, fit various factor models, and 
-        perform factor rotations. It comes with the following key features:
+        FactorFlow is an **interactive tool** intended to help researchers and practitioners perform exploratory factor 
+        analysis (EFA) effectively and efficiently. Using this app, users can upload their datasets, perform 
+        diagnostics, fit various factor models and factor rotations, and evaluate models. It comes with the following 
+        key features:
         """)
         col_1, col_2 = st.columns([2, 1])
         with col_1:
             st.space("medium")
             st.markdown("""
             * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., 
-            correlation heatmap) for **core exploratory factor analysis**
+            heatmaps) for **core exploratory factor analysis**
             * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for 
             Factor Models](https://arxiv.org/abs/2409.11525) for going **beyond the classical methods**
             * **Large language model integration** for factor model interpretation
