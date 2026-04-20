@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.5.1
+# FactorFlow V3.5.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -36,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.5.1"
+VERSION_NUMBER = "3.5.2"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -498,6 +498,10 @@ def guide_dialog():
         * **Interpretation** - You can generate automatic interpretations for factor models (at a factor-level) here 
         using the selected large language model (you can choose which large language model to use in the *NLP Models* 
         panel under *Menu*).
+        
+        Note that for **generating interpretations**, you can select which **large language model** to use and at 
+        what **temperature** to generate. To do so, find the *NLP Models* panel in the *Menu* sidebar.  For generally 
+        good results, you may keep these configurations in their default values.
         """)
 
         st.space("xxsmall")
