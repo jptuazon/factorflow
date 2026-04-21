@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.5.2
+# FactorFlow V3.5.3
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -36,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.5.2"
+VERSION_NUMBER = "3.5.3"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -2495,9 +2495,8 @@ with tab_overview:
                       speed=2, reverse=False, loop=True, quality="low", height=275, key="rotation_lottie")
 
         st.markdown("""              
-        Practitioners can easily perform exploratory factor analysis and even leverage semantic or 
-        arbitrary information for analyzing factor models. **Interact with the sample visualization above to see how 
-        the plot changes depending on how interpretable the factor model is!**
+        Users can easily perform exploratory factor analysis and even leverage semantic or 
+        arbitrary information for analyzing factor models.
         """)
 
         st.space("xxsmall")
