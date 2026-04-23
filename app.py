@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.5.5
+# FactorFlow V3.5.7
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -36,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.5.5"
+VERSION_NUMBER = "3.5.7"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -2467,11 +2467,12 @@ with st.sidebar.expander("Settings", True, icon=":material/settings:"):
     show_x_grid = not st.checkbox("Hide vertical grid lines", key="show_col_grid", value=True)
 
 # Body
-tab_overview, tab_diagnostics, tab_dashboard, tab_about = st.tabs([
+tab_overview, tab_diagnostics, tab_dashboard, tab_about, tab_privacy = st.tabs([
     ":material/home: Overview",
     ":material/data_thresholding: Diagnostics",
     ":material/dashboard: Dashboard",
-    ":material/page_info: About"
+    ":material/page_info: About",
+    ":material/privacy_tip: Privacy"
 ])
 
 with tab_overview:
@@ -3929,6 +3930,99 @@ with tab_about:
           This project was initially developed as part of CS 242 (Data Visualization) under Dr. Richelle Juayong at 
           the University of the Philippines - Diliman, whose helpful guidance and feedback are gratefully acknowledged.
         """)
+
+with tab_privacy:
+    st.markdown("""
+    ##### File uploads
+    FactorFlow does not store user uploads in persistent data storage. Uploaded information are discarded when the 
+    session ends. The app deals with file uploads using Streamlit's `file_uploader`. Thus, files uploaded to the app 
+    are stored only in memory and not in disk. Uploads are deleted when:
+    * The user replaced the old file by uploading a new one.
+    * The file uploader is cleared.
+    * The browser tab where the file was uploaded is closed.
+    
+    This means that uploaded files are deleted immediately after they are not in use anymore. More information can 
+    be found [here](https://docs.streamlit.io/knowledge-base/using-streamlit/where-file-uploader-store-when-deleted).
+    
+    ##### Large language model calls
+    For LLM-related features, FactorFlow uses [Groq](https://groq.com/). Whenever the user generates an 
+    interpretation, the app uses Groq's API and passes data about the loading matrix and the statements (but not 
+    the raw data). Thus, for LLM calls, the app follows Groq's privacy policy, which you can find 
+    [here](https://console.groq.com/docs/legal).
+    
+    An example of what is passed to Groq's API is shown below.
+    ```
+    factor_1:
+    - X1 (Negative): I prefer not to show a partner how I feel deep down.
+    - X9 (Negative): I don't feel comfortable opening up to romantic partners.
+    - X15 (Positive): I feel comfortable sharing my private thoughts and feelings with my partner.
+    - X19 (Positive): I find it relatively easy to get close to my partner.
+    - X25 (Positive): I tell my partner just about everything.
+    - X27 (Positive): I usually discuss my problems and concerns with my partner.
+    - X29 (Positive): I feel comfortable depending on romantic partners.
+    - X31 (Positive): I don't mind asking romantic partners for comfort, advice, or help.
+    - X32 (Positive): I get frustrated if romantic partners are not available when I need them.
+    - X33 (Positive): It helps to turn to my romantic partner in times of need.
+    - X35 (Positive): I turn to my partner for many things, including comfort and reassurance.
+    
+    factor_2:
+    - X2 (Positive): I worry about being abandoned.
+    - X4 (Positive): I worry a lot about my relationships.
+    - X6 (Positive): I worry that romantic partners wont care about me as much as I care about them.
+    - X8 (Positive): I worry a fair amount about losing my partner.
+    - X10 (Positive): I often wish that my partner's feelings for me were as strong as my feelings for him/her.
+    - X14 (Positive): I worry about being alone.
+    - X18 (Positive): I need a lot of reassurance that I am loved by my partner.
+    - X22 (Negative): I do not often worry about being abandoned.
+    - X28 (Positive): When I'm not involved in a relationship, I feel somewhat anxious and insecure.
+    - X34 (Positive): When romantic partners disapprove of me, I feel really bad about myself.
+    
+    factor_3:
+    - X5 (Positive): Just when my partner starts to get close to me I find myself pulling away.
+    - X7 (Positive): I get uncomfortable when a romantic partner wants to be very close.
+    - X13 (Positive): I am nervous when partners get too close to me.
+    - X30 (Negative): I get frustrated when my partner is not around as much as I would like.
+    - X32 (Negative): I get frustrated if romantic partners are not available when I need them.
+    - X36 (Negative): I resent it when my partner spends time away from me.
+    
+    factor_4:
+    - X3 (Negative): I am very comfortable being close to romantic partners.
+    - X5 (Positive): Just when my partner starts to get close to me I find myself pulling away.
+    - X6 (Positive): I worry that romantic partners wont care about me as much as I care about them.
+    - X7 (Positive): I get uncomfortable when a romantic partner wants to be very close.
+    - X9 (Positive): I don't feel comfortable opening up to romantic partners.
+    - X10 (Positive): I often wish that my partner's feelings for me were as strong as my feelings for him/her.
+    - X11 (Positive): I want to get close to my partner, but I keep pulling back.
+    - X13 (Positive): I am nervous when partners get too close to me.
+    - X17 (Positive): I try to avoid getting too close to my partner.
+    - X18 (Positive): I need a lot of reassurance that I am loved by my partner.
+    - X19 (Negative): I find it relatively easy to get close to my partner.
+    - X20 (Positive): Sometimes I feel that I force my partners to show more feeling, more commitment.
+    - X21 (Positive): I find it difficult to allow myself to depend on romantic partners.
+    - X23 (Positive): I prefer not to be too close to romantic partners.
+    - X24 (Positive): If I can't get my partner to show interest in me, I get upset or angry.
+    - X26 (Positive): I find that my partner(s) don't want to get as close as I would like.
+    - X30 (Positive): I get frustrated when my partner is not around as much as I would like.
+    - X32 (Positive): I get frustrated if romantic partners are not available when I need them.
+    - X36 (Positive): I resent it when my partner spends time away from me.
+    
+    factor_5:
+    - X1 (Negative): I prefer not to show a partner how I feel deep down.
+    - X3 (Positive): I am very comfortable being close to romantic partners.
+    - X7 (Negative): I get uncomfortable when a romantic partner wants to be very close.
+    - X9 (Negative): I don't feel comfortable opening up to romantic partners.
+    - X10 (Positive): I often wish that my partner's feelings for me were as strong as my feelings for him/her.
+    - X12 (Positive): I often want to merge completely with romantic partners, and this sometimes scares them away.
+    - X15 (Positive): I feel comfortable sharing my private thoughts and feelings with my partner.
+    - X16 (Positive): My desire to be very close sometimes scares people away.
+    - X20 (Positive): Sometimes I feel that I force my partners to show more feeling, more commitment.
+    - X23 (Negative): I prefer not to be too close to romantic partners.
+    - X25 (Positive): I tell my partner just about everything.
+    - X26 (Positive): I find that my partner(s) don't want to get as close as I would like.
+    - X27 (Positive): I usually discuss my problems and concerns with my partner.
+    - X35 (Positive): I turn to my partner for many things, including comfort and reassurance.
+    ```
+    """)
 
 if show_floating_top:
     if floating_button(":material/keyboard_double_arrow_up: Top"):
