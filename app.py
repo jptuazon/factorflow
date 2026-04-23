@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.5.3
+# FactorFlow V3.5.5
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -36,7 +36,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.5.3"
+VERSION_NUMBER = "3.5.5"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -496,12 +496,13 @@ def guide_dialog():
         "network" of Factor 1 shares multiple nodes with the "network" of Factor 2, there are multiple cross-loadings 
         (i.e., significant overlap) between the two factors.
         * **Interpretation** - You can generate automatic interpretations for factor models (at a factor-level) here 
-        using the selected large language model (you can choose which large language model to use in the *NLP Models* 
-        panel under *Menu*).
-        
-        Note that for **generating interpretations**, you can select which **large language model** to use and at 
-        what **temperature** to generate. To do so, find the *NLP Models* panel in the *Menu* sidebar.  For generally 
-        good results, you may keep these configurations in their default values.
+        using the selected large language model.
+        """)
+
+        st.info("""
+        :material/info: Note that for **generating interpretations**, you can select which **large language model** 
+        to use and at what **temperature** to generate. To do so, find the *NLP Models* panel in the *Menu* sidebar. 
+        For generally good results, you may keep these options at their default values.
         """)
 
         st.space("xxsmall")
@@ -1202,6 +1203,9 @@ def upload_data_dialog():
                 models with polychoric correlations, which are generally preferred.
                 """
             )
+
+    if calc_poly_corr == "Yes":
+        st.warning(":material/warning: Note that calculating polychoric correlations may take up to a few minutes.")
 
     st.divider()
 
@@ -2508,6 +2512,10 @@ with tab_overview:
         st.space("xxsmall")
 
     with st.expander("Getting started", True, icon=":material/rocket_launch:"):
+        st.info("""
+        For several widgets, you can hover at the :material/help: icon to see additional tips.
+        """)
+
         st.markdown("""
         In general, you can follow these steps to use FactorFlow.
         """)
