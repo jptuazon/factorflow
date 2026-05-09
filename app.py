@@ -10,10 +10,11 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.5.7
+# FactorFlow V3.6.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
+import base64
 import json
 import math
 import time
@@ -36,7 +37,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.5.7"
+VERSION_NUMBER = "3.6.0"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -78,7 +79,7 @@ def load_use_model():
             await load_library('https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder');
             window.parent.use_model = await use.load();
         }}
-        
+
         return 1;
     }})();
     """
@@ -121,6 +122,10 @@ def clear_embeddings():
 st.session_state.USE_MODEL_LOADED = load_use_model()
 
 # Session state
+# # Page management
+if "CURRENT_PAGE" not in st.session_state:
+    st.session_state.CURRENT_PAGE = None
+
 # # State management for fitting factor models
 if "SHOW_FIT_DIALOG" not in st.session_state:
     st.session_state.SHOW_FIT_DIALOG = False
@@ -311,25 +316,26 @@ def guide_dialog():
 
     with st.expander("Pre-requisite: The parts of the app and preferences"):
         st.markdown("""
-        Familiarize yourself with the parts of the app. The app has a *Menu* **sidebar**, with four different 
+        Familiarize yourself with the parts of the app. The app has a **Menu** **sidebar**, with four different 
         **panels**:
         * **NLP Models** - This shows the statuses of the NLP models used in the app. You can also configure the large 
         language model here.
         * **Data** - This is where you can upload your datasets. You can also examine your dataset in this panel by 
-        clicking the *Stats* button. High-level information is also displayed here.
+        clicking the **Stats** button. High-level information is also displayed here.
         * **Factor Models** - You can fit new factor models using this panel. It also shows the factor models that 
-        you have fitted and saved so far. You can examine each saved models by clicking *View*. High-level 
+        you have fitted and saved so far. You can examine each saved models by clicking **View**. High-level 
         information is also displayed here.
         * **Settings** - You can configure the application to match your preferences. You can change things like the 
-        color palettes used and the chart styles. 
-        
-        The app also has four different **tabs**:
+        color palettes used, the chart styles, and the font size.
+
+        The app also has five different **pages**:
         * **Overview** - This is the home page, where you can find general information about the app.
         * **Diagnostics** - This is where you can examine diagnostics for factor analysis. Here, you can determine 
         how many factors to use or which manifest variables have low communalities, and so on.
-        * **Dashboard** - In this tab, you can see multiple figures and visualizations for assessing the factor 
+        * **Dashboard** - In this page, you can see multiple figures and visualizations for assessing the factor 
         model. You can also compare two factor models at the same time here.
         * **About** - You can find development details for the app here.
+        * **Privacy** - Information about how user uploads are managed can be found here.
         """)
 
         st.space("xxsmall")
@@ -339,23 +345,23 @@ def guide_dialog():
         st.space("xxsmall")
 
         st.markdown("""
-        You can also configure app settings (e.g., color palettes) in the *Settings* panel. You can change settings 
+        You can also configure app settings (e.g., color palettes) in the **Settings** panel. You can change settings 
         anytime.
         """)
 
-        st.image("./images/steps/step_pre_req_2.jpeg", width="stretch")
+        st.image("./images/steps/step_pre_req_2.png", width="stretch")
 
     step += 1
     with st.expander(f"Step {step}: Preparing uploads"):
         st.markdown("""
-        Prepare your datasets for upload. For this demo, you can also download "ECR_data_clean.csv", 
+        Prepare your datasets for upload. For a demo, you can also **download sample files** "ECR_data_clean.csv", 
         "ECR_questions.txt", and "sample_statement_tags.csv" from 
         [here](https://drive.google.com/drive/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X) as examples. There are 
         three kinds of datasets or files that you can upload.
         """)
 
         st.markdown("""
-        ### The main dataset (CSV file). 
+        #### The main dataset (CSV file). 
         This is the tabular dataset on which the factor models will be fit. Each 
         column must represent a feature and each observation must represent an observation. All data values 
         must be numeric and there must have no missing values. This is **required** to fit a model. The CSV file 
@@ -364,7 +370,7 @@ def guide_dialog():
         """)
 
         st.markdown("""
-        ### The statements associated with the features (TXT file).
+        #### The statements associated with the features (TXT file).
         This is the list of questions or statements associated with each feature in the main dataset. It must 
         be a text file, where statements are separated by linebreaks - consecutive lines with one statement 
         per line. The order of the statements must match the order of the columns in the main dataset (i.e., 
@@ -377,11 +383,11 @@ def guide_dialog():
         """)
 
         st.markdown("""
-        ### The tags associated with each variable (manual or CSV file). 
+        #### The tags associated with each variable (manual or CSV file). 
         You can add tags to each variable or statement to help visualize interpretability. 
-        To do so, click *Tags* under *Data*. Then, either upload manually or an appropriate CSV file. 
+        To do so, click **Tags** under **Data**. Then, either upload manually or an appropriate CSV file. 
         This is optional.
- 
+
         The CSV file must have two columns. The first column must contain the variables 
         and the second column must contain the corresponding tags. If a variable has 
         multiple tags, separate them using commas (e.g., "Tag A, Tag B"). If a variable 
@@ -391,8 +397,8 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Uploading data"):
         st.markdown("""
-        Upload "ECR_data_clean.csv" and "ECR_questions.txt" by clicking the *Upload* button in *Data* panel under 
-        *Menu*. You should see something like this.
+        Upload "ECR_data_clean.csv" and "ECR_questions.txt" by clicking the **Upload** button in **Data** panel under 
+        **Menu**. You should see something like this.
         """)
 
         st.image("./images/steps/step_2_1.jpeg", width="stretch")
@@ -409,10 +415,9 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Tagging variables"):
         st.markdown("""
-        This step is optional. However, if you want to upload tags (metadata) for the variables, click *Tags* in 
-        the *Data* panel under *Menu*. You can manually tag variable or upload a CSV file. For demonstration purposes, 
-        you may upload "sample_statement_tags.csv" for the tags, as shown below.
-    
+        This step is optional. However, if you want to upload tags (metadata) for the variables, click **Tags** in 
+        the **Data** panel under **Menu**. You can manually tag variable or upload a CSV file. For demonstration 
+        purposes, you may upload "sample_statement_tags.csv" for the tags, as shown below.
         """)
 
         st.image("images/steps/step_3_1.jpeg", width="stretch")
@@ -421,8 +426,8 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Summary statistics and hypothesis testing"):
         st.markdown("""
-        You can view **summary statistics** and conduct **hypothesis testing** in the *View basic stats* window. To 
-        get to it, click *Stats* in the *Data* panel under *Menu*.
+        You can view **summary statistics** and conduct **hypothesis testing** in the **View basic stats** window. To 
+        get to it, click **Stats** in the **Data** panel under **Menu**.
         """)
 
         st.image("./images/steps/step_4_1.jpeg", width="stretch")
@@ -431,14 +436,14 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Diagnostics"):
         st.markdown("""
-        You can check out the diagnostics for factor analysis in the *Diagnostics* tab. This will help you decide 
+        You can check out the diagnostics for factor analysis in the **Diagnostics** tab. This will help you decide 
         which manifest variables to retain and how many factors to include. You can find the following:
         * **Goodness-of-fit** - Various goodness-of-fit metrics are displayed here.
         * **Communalities and adequacies** - You can see the communality and Kaiser-Meyer-Olikin sampling adequacy for 
         each manifest variable here.
         * **Scree plot** - This shows the sum of squared loadings (i.e., eigenvalue) per additional factor included.
         * **Correlations** - This shows the pairwise correlations for the selected manifest variables.
-        
+
         **Goodness-of-fit** and **Correlations** should help you assess the global or overall quality of fit of a 
         factor model. On the other hand, **Communalities and adequacies** can help you identify which variables to 
         keep while **Scree plot** can help you detmrine the number of factors to include.
@@ -459,7 +464,7 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Viewing factor models"):
         st.markdown("""
-        In the *Factor Models* panel under *Menu*, click *View* to see your saved models. Here, you can check each 
+        In the **Factor Models** panel under **Menu**, click **View** to see your saved models. Here, you can check each 
         model's fit details, correlation matrix, prior matrix (if present), loadings, communalities, factor scores, 
         factor correlations, and more. You can also delete models here.
         """)
@@ -470,7 +475,7 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Using the dashboard"):
         st.markdown("""
-        Head on over to the *Dashboard* tab, which is where most of the information and visualizations that you need 
+        Head on over to the **Dashboard** tab, which is where most of the information and visualizations that you need 
         for assessing a factor model can be found. Select the model that you want to examine. There are several 
         sections here:
         * **Fit details** - This shows information about the model's fit details (e.g., rotation, correlation type).
@@ -499,12 +504,6 @@ def guide_dialog():
         using the selected large language model.
         """)
 
-        st.info("""
-        :material/info: Note that for **generating interpretations**, you can select which **large language model** 
-        to use and at what **temperature** to generate. To do so, find the *NLP Models* panel in the *Menu* sidebar. 
-        For generally good results, you may keep these options at their default values.
-        """)
-
         st.space("xxsmall")
 
         col_1, col_2 = st.columns(2)
@@ -528,10 +527,10 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Generating interpretations"):
         st.markdown("""
-        In the *Interpretation* section of the *Dashboard* tab, you can easily generate an automated interpretation 
-        for the factor model using the large language model selected (shown in the *NLP Models* panel under *Menu*). 
-        You can choose which model to use and with which temperature to generate, and even re-generate multiple 
-        interpretations.
+        In the **Interpretation** section of the **Dashboard** tab, you can easily generate an automated interpretation 
+        for the factor model using the large language model selected (shown in the **NLP Models** panel under **Menu**). 
+        You can choose which model to use and with which temperature to generate, and even re-generate interpretations 
+        multiple times.
         """)
 
         st.image("./images/steps/step_9_1.jpeg", width="stretch")
@@ -539,7 +538,7 @@ def guide_dialog():
     step += 1
     with st.expander(f"Step {step}: Comparing models"):
         st.markdown("""
-        You can select up to two factor models simultaneously in *Dashboard*, which allows you to easily compare 
+        You can select up to two factor models simultaneously in **Dashboard**, which allows you to easily compare 
         and contrast factor models, and ultimately select the final factor model. The first model will be shown 
         on the left while the second one will be shown on the right.
         """)
@@ -561,11 +560,11 @@ def guide_dialog():
         to download them as CSV files. 
         """)
 
-        st.image("./images/steps/step_11_2.jpeg", width="stretch")
-        st.image("./images/steps/step_11_3.jpeg", width="stretch")
+        st.image("./images/steps/step_11_2.png", width="stretch")
+        st.image("./images/steps/step_11_3.png", width="stretch")
 
         st.markdown("""
-        Finally, for a few visualizations, you can download them by right-cliking and clicking *Save image as*.
+        Finally, for a few visualizations, you can download them by right-cliking and clicking **Save image as**.
         """)
 
         st.image("./images/steps/step_11_4.png", width="stretch")
@@ -671,7 +670,6 @@ def fit_factor_model():
 if st.session_state.SHOW_FIT_DIALOG:
     fit_factor_model()
 
-
 # Calculate polychoric
 if st.session_state.CALCULATE_POLY_CORR == "Yes":
     st.session_state.SHOW_POLY_DIALOG = True
@@ -745,7 +743,6 @@ def calculate_poly_corr():
 if st.session_state.SHOW_POLY_DIALOG:
     calculate_poly_corr()
 
-
 # LLM set up
 LLM_API_KEY = st.secrets["GROQ_API_KEY"]
 LLM_MODEL_IDS = [
@@ -769,13 +766,13 @@ def generate_interpretation(factors):
                     "content": """
                     You are an expert in Exploratory Factor Analysis (EFA). Your role is to act as an 
                     "EFA Factor Interpretation Assistant".
-                    
+
                     For each factor, you must:
                     1. Rewrite and enumerate the statements as "Statement 1", "Statement 2", and so on.
                     2. Generate a concise factor label (1 to 4 words only).
                     3. Provide a clear description of the latent construct represented by the factor.
                     4. Provide a justification explaining your interpretations.
-                    
+
                     Important instructions to follow (EXTREMELY STRICT):
                     - Each factor MUST include ALL four sections: Statements, Label, Description, and Justificiation.
                     - Process ALL factors. Do NOT omit any section for any factor.
@@ -785,7 +782,7 @@ def generate_interpretation(factors):
                     - Do NOT omit any section for any factor. Always refer to statements using their labels 
                       (e.g., "Statement 1").
                     - Adhere to all rules and requirements listed next.
-                    
+
                     Statements Section Requirements:
                     - List ALL statements under the factor.
                     - The statement label is given before each statement. The loading's sign is also given. For 
@@ -798,13 +795,13 @@ def generate_interpretation(factors):
                     - Label the statements with the labels given in the input and list them in the order that
                     they are given.
                     - Within a factor, list down each statement included ONLY once. This is important.
-                    
+
                     Description Requirements:
                     - Avoid surface-level or generic interpretations.
                     - Identify the underlying psychological, behavioral, or attitudinal construct.
                     - Prefer abstract constructs over literal summaries of statements.
                     - Take into account the signs of the loadings when creating an interpretation.
-                    
+
                     Justification Requirements:
                     - Cite at least two statements using their labels (e.g., "X1").
                     - Explain how they support BOTH:
@@ -812,7 +809,7 @@ def generate_interpretation(factors):
                       (b) the consistency assessment.
                     - Go beyond restating. Provide reasoning.
                     - Take into account the signs of the loadings when creating an interpretation.
-                    
+
                     Scale Direction Rule:
                     - At the beginning of the input, it is possible that "Scale Direction" is specified. It can be 
                     either "Disagree-Agree", which means that larger variable values indicate higher agreement levels, 
@@ -824,28 +821,28 @@ def generate_interpretation(factors):
                     - Note that the scale direction by itself does NOT influence interpretation. However, pairing 
                     the sign of the loading with the scale direction allows you to properly interpret the 
                     "effect" of a manifest variable on a factor.
-                    
+
                     Conflict Handling Rule:
                     - If statements reflect multiple distinct or conflicting themes:
                       - Identify the dominant theme.
                       - Note secondary or conflicting themes in the Description section.
                       - Do NOT force an artificial single interpretation.
-                      
+
                     Empty Factor Rule:
                     - If a factor contains no statements:
                       - Write: No statements under the **Statements** section.
                       - For Label, Description, and Justification, write: Not applicable.
                       - Do NOT attempt to infer or generate content.
-                    
+
                     Ambiguity Handling Rule:
                     - If a statement is vague or ambiguous:
                       - Acknowledge this in the Justification section.
                       - Explain how this affects interpretation.
-                    
+
                     Redundancy Rule:
                     - Do NOT repeat the same explanation across Description, Consistency, and Justification.
                     - Each section must contribute distinct information.
-                    
+
                     Formatting Rules:
                     - Bold the factor name (e.g., **factor_1**).
                     - Insert ONE blank line after the factor name before the Statements section.
@@ -853,7 +850,7 @@ def generate_interpretation(factors):
                     - Bold section headers: Statements, Label, Description, Consistency, Justification.
                     - Insert one blank line between sections.
                     - Add a separator line between factors: -----------------------------------
-                    
+
                     Output Requirements (EXTREMELY STRICT):
                     - You MUST process ALL factors. Again, ALL factors. Ensure that.
                     - Every factor MUST contain ALL four sections. Again, ALL sections. Ensure that.
@@ -861,7 +858,7 @@ def generate_interpretation(factors):
                     - Do NOT add any introductory or concluding text.
                     - Follow formatting EXACTLY.
                     - Follow ALL RULES AND REQUIREMENTS EXACTLY.
-                    
+
                     Self-Check (DO NOT OUTPUT THIS SECTION):
                     Before finalizing your response, internally verify that:
                     - Every factor includes ALL four sections.
@@ -876,28 +873,28 @@ def generate_interpretation(factors):
                     if "X1: I am sad." is included in factor_1, then "X1: I am sad." must appear in factor_1 EXACTLY 
                     once. No duplicates.
                     - Take into account the signs of the loadings when creating an interpretation.
-                    
+
                     Input Template:
                     Scale Direction - [direction of scale]
-                    
+
                     **factor_X**
                     - [statement label 1] [loading sign 1]: [full statement 1]
                     - [statement label 2] (loading sign 2): [full statement 2]
-                    
+
                     Output Template (APPLY TO EVERY FACTOR WITHOUT EXCEPTION):
-                    
+
                     **factor_X**
-                    
+
                     • **Statements**:
                       [statement label 1] (loading sign 1): [full statement 1] 
                       [statement label 2 (loading sign 2): [full statement 2]
-                    
+
                     • **Label**: [2–4 word label]
-                    
+
                     • **Description**: [Explanation of the latent construct]
-                    
+
                     • **Justification**: [Use Statement numbers and explain reasoning]
-                    
+
                     -----------------------------------   
                     """
                 },
@@ -952,7 +949,7 @@ def interpret_factor_model(df_discretized_loadings, model_name):
             for idy, variable in enumerate(variables):
                 statement = st.session_state.STATEMENTS_DF[
                     st.session_state.STATEMENTS_DF["Variable"] == variable
-                ]["Statement"].item()
+                    ]["Statement"].item()
                 input_for_llm += f"- {variable} ({signs[idy]}): {statement}\n"
 
     input_for_llm = input_for_llm.encode("utf-8").decode("unicode_escape")
@@ -1050,7 +1047,7 @@ def compute_tags_breakdown(df_loadings):
         factor_squared_loadings["included"] = factor_squared_loadings["variable"].isin(variables).astype(int)
         total = factor_squared_loadings[
             factor_squared_loadings["included"] == 1
-        ][factor].sum()
+            ][factor].sum()
         tags.append(tag)
         factors.append(factor)
         squared_loadings_sum.append(total)
@@ -1066,7 +1063,7 @@ def compute_tags_breakdown(df_loadings):
         factor_squared_loadings["included"] = factor_squared_loadings["variable"].isin(variables).astype(int)
         total = factor_squared_loadings[
             factor_squared_loadings["included"] == 1
-        ][factor].sum()
+            ][factor].sum()
         tags.append("No tag")
         factors.append(factor)
         squared_loadings_sum.append(total)
@@ -1161,7 +1158,7 @@ def process_prior_matrix(prior_matrix, rotation, manifest_vars):
 @st.dialog(":material/upload: Upload dataset", width="medium")
 def upload_data_dialog():
     st.info("""
-    :material/info: Ensure that you have read *Getting started* in the *Overview* tab before proceeding.
+    :material/info: Ensure that you have read **Getting started** in the **Overview** page before proceeding.
     """)
     df_data = None
     data_file_name = None
@@ -1281,7 +1278,7 @@ def view_tags_dialog():
     st.write("""
     Tags are a priori labellings of variables or statements. For instance, you can tag the statements "I am loyal to 
     brands I have used before." and "I associate products with memories." with "Nostalgia". Each variable can have 
-    zero or more tags. These tags are then used to summarize the "breakdown" of a factor in the *Dashboard*.
+    zero or more tags. These tags are then used to summarize the "breakdown" of a factor in the **Dashboard**.
     """)
 
     df_tags = pd.DataFrame([
@@ -1384,7 +1381,6 @@ def view_tags_dialog():
 
 @st.dialog(":material/analytics: View basic stats", width="large")
 def view_data_dialog():
-
     st.info("""
     :material/info: You can download almost all tables (as CSV) and charts (as CSV or PNG) in this app, 
     including the ones below.
@@ -1401,7 +1397,7 @@ def view_data_dialog():
     st.space("xxsmall")
 
     st.subheader("Summary statistics")
-    st.caption(f"Sample size = **{st.session_state.DATA.shape[0]:,}**")
+    st.markdown(f"Sample size = **{st.session_state.DATA.shape[0]:,}**")
     df_summary = pd.DataFrame(
         {
             "Variable": [f"X{idx + 1}" for idx in range(st.session_state.DATA.shape[1])],
@@ -2019,7 +2015,7 @@ def view_models_dialog():
                 ["variable", "Statement", "mean"] +
                 [col for col in model_analysis.columns if col.startswith("factor_")] +
                 ["communality", "kmo_msa"]
-            ]
+                ]
         model_analysis.columns = [col.upper() for col in model_analysis.columns]
         model_analysis_styled = model_analysis.style.background_gradient(
             cmap=continuous_diverging_color_palette, axis=None,
@@ -2107,58 +2103,26 @@ def view_models_dialog():
         st.space()
 
 
-# Header
-st.markdown("""
-    <style>
-        .st-key-load_use_model iframe, .st-key-get_embeddings iframe {
-            height: 0px !important;
-            background-color: rgba(0,0,0,0) !important;
-        }
-        
-        div:has(> iframe[title="streamlit_lottie.streamlit_lottie"]) {
-            overflow: hidden !important;
-            margin: auto !important;
-        }
-    
-        .st-key-rotation_lottie iframe {
-            transform: scale(1) !important;
-            transform-origin: center center !important;
-            
-        }
-
-        .custom-footer {
-            position: fixed;
-            left: 0;
-            bottom: 0;
-            width: 100%;
-            background-color: #FFFFFF;
-            color: #7B8284;
-            text-align: center;
-            padding: 7px 30px 7px 30px;
-            font-size: 11px;
-            z-index: 999990;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
+# Loader
 _, col_2, _ = st.columns([1, 3, 1])
 with col_2:
-    st.image("./images/factor_flow_logo.png", width="stretch")
+    with open("./images/factor_flow_logo.png", "rb") as f:
+        encoded_logo = base64.b64encode(f.read()).decode()
+    st.markdown(f"""
+    <img class="hide-logo" src="data:image/png;base64,{encoded_logo}" />
+    """, unsafe_allow_html=True)
     with st.container(horizontal_alignment="center"):
         with st.spinner("Loading NLP models...", show_time=True):
             while st.session_state.USE_MODEL_LOADED != 1:
                 time.sleep(0.1)
-
-st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
-with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
-    _, col_2, _ = st.columns([1, 6, 1])
-    with col_2:
-        st.markdown(
-            "<h4 style='text-align: center;'>An LLM-enhanced Visual Workbench for "
-            "Exploratory Factor Analysis</h4>",
-            unsafe_allow_html=True
-        )
-        st.space()
+if st.session_state.USE_MODEL_LOADED == 1:
+    st.markdown("""
+        <style>
+            .hide-logo {
+                display: none !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
 # Sidebar
 st.sidebar.title(":material/menu: Menu")
@@ -2327,6 +2291,9 @@ with st.sidebar.expander("Factor Models", icon=":material/function:", expanded=T
 with st.sidebar.expander("Settings", True, icon=":material/settings:"):
     st.caption("General")
     show_floating_top = st.checkbox("""Show "Back to Top" button""", key="show_back_to_top", value=True)
+    font_size = st.slider("Choose the base font size (in px)", 12, 16, 14,
+                          step=1, help="The default value is 14px.")
+
     if st.button("Reload app", type="secondary", width="stretch"):
         st.markdown(
             """
@@ -2466,53 +2433,178 @@ with st.sidebar.expander("Settings", True, icon=":material/settings:"):
     show_y_grid = not st.checkbox("Hide horizontal grid lines", key="show_row_grid", value=True)
     show_x_grid = not st.checkbox("Hide vertical grid lines", key="show_col_grid", value=True)
 
-# Body
-tab_overview, tab_diagnostics, tab_dashboard, tab_about, tab_privacy = st.tabs([
-    ":material/home: Overview",
-    ":material/data_thresholding: Diagnostics",
-    ":material/dashboard: Dashboard",
-    ":material/page_info: About",
-    ":material/privacy_tip: Privacy"
-])
 
-with tab_overview:
-    with st.expander("Description", True, icon=":material/description:"):
+# Header
+st.markdown(f"""
+    <style>
+        html {{
+           font-size: {font_size}px;
+        }}
+
+        .stMainBlockContainer {{
+            padding-top: 2rem !important;
+            padding-bottom: 7rem !important;
+        }}
+
+        .st-key-load_use_model, .st-key-load_use_model iframe, .st-key-get_embeddings, .st-key-get_embeddings iframe {{
+            height: 0px !important;
+            background-color: rgba(0,0,0,0) !important;
+        }}
+
+        div:has(> iframe[title="streamlit_lottie.streamlit_lottie"]) {{
+            overflow: hidden !important;
+            margin: auto !important;
+        }}
+
+        .st-key-rotation_lottie iframe {{
+            transform: scale(1) !important;
+            transform-origin: center center !important;
+        }}
+
+        .custom-footer {{
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: #FFFFFF;
+            color: #7B8284;
+            text-align: center;
+            padding: 7px 30px 7px 30px;
+            font-size: 11px;
+            z-index: 999990;
+        }}
+
+        .feature-title {{
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+        }}
+
+        .feature-desc {{
+            font-size: 1rem;
+            line-height: 1.6;
+        }}
+
+        .feature-card {{
+            display: flex;
+            gap: 1rem;
+            padding: 1rem 0;
+            border-bottom: 2px solid #F0F0F0;
+        }}
+
+        .feature-icon {{
+            min-width: 56px;
+            border-radius: 16px;
+            background: #F6FAFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }}
+
+        .no-border {{
+            border: none !important
+        }}
+    </style>
+
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+""", unsafe_allow_html=True)
+
+
+# Body
+def overview_page():
+    st.session_state.CURRENT_PAGE = "overview"
+
+    _, col_2, _ = st.columns([1, 3, 1])
+    with col_2:
+        st.image("./images/factor_flow_logo.png", width="stretch")
+
+    st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+    with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+        _, col_2, _ = st.columns([1, 6, 1])
+        with col_2:
+            st.markdown(
+                """
+                <h5 style="text-align: center; color: #696969;">
+                An LLM-integrated Visual Workspace for Exploratory Factor Analysis
+                </h5>
+                """,
+                unsafe_allow_html=True
+            )
+
+    st.space()
+
+    with st.container(border=False):
+        st.markdown("""
+        ## :material/description: Description
+        """)
 
         st.markdown("""
-        FactorFlow is an **interactive tool** intended to help researchers and practitioners perform exploratory factor 
-        analysis (EFA) effectively and efficiently. Using this app, users can upload their datasets, perform 
-        diagnostics, fit various factor models and factor rotations, and evaluate models. It comes with the following 
+        FactorFlow is an **interactive tool** intended to help researchers and practitioners perform exploratory factor
+        analysis (EFA) effectively and efficiently. Using this app, users can upload their datasets, perform
+        diagnostics, fit various factor models and factor rotations, and evaluate models. It comes with the following
         key features:
         """)
+
+        features = [
+            ("<span class='material-icons-outlined'>calculate</span>", "Core exploratory factor analysis",
+             "Classical estimation methods, rotations, and visualizations"),
+            ("<span class='material-icons-outlined'>outbound</span>", "Beyond classical methods",
+             "Pairwise target rotation and interpretability plots"
+             "<a href='https://arxiv.org/abs/2409.11525' target='blank'><sup> learn more</sup></a>"),
+            ("<span class='material-icons-outlined'>psychology</span>", "Large language model integration",
+             "Language-model-assisted interpretation and semantic guidance"),
+            ("<span class='material-icons-outlined'>analytics</span>", "Deep analysis workflows",
+             "Diagnostics, comparisons, and exploratory deep dives")
+        ]
+
+        col_1, col_2 = st.columns([2, 1])
+        i = 0
+        with col_1:
+            for icon, title, desc in features:
+                i += 1
+                if i == len(features):
+                    st.markdown(f"""
+                        <div class="feature-card no-border">
+                            <div class="feature-icon">{icon}</div>
+                            <div>
+                                <div class="feature-title">{title}</div>
+                                <div class="feature-desc">{desc}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                        <div class="feature-card">
+                            <div class="feature-icon">{icon}</div>
+                            <div>
+                                <div class="feature-title">{title}</div>
+                                <div class="feature-desc">{desc}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+        with col_2:
+            st.space("xxsmall")
+
+            st_lottie(load_lottie_file("./lotties/rotation.json"),
+                      speed=2, reverse=False, loop=True, quality="low", height=300, key="rotation_lottie")
+
+        st.space("xsmall")
+
         col_1, col_2 = st.columns([2, 1])
         with col_1:
-            st.space("medium")
-            st.markdown("""
-            * Readily available classical rotations (e.g., varimax and more) and traditional visualizations (e.g., 
-            heatmaps) for **core exploratory factor analysis**
-            * Implementation of pairwise target rotation and interpretability plots from [Pairwise Target Rotation for 
-            Factor Models](https://arxiv.org/abs/2409.11525) for going **beyond the classical methods**
-            * **Large language model integration** for factor model interpretation
-            * Multiple tabs available for **diagnostics, deep dives, and comparisons**
-            """)
-        with col_2:
-            st_lottie(load_lottie_file("./lotties/rotation.json"),
-                      speed=2, reverse=False, loop=True, quality="low", height=275, key="rotation_lottie")
-
-        st.markdown("""              
-        Users can easily perform exploratory factor analysis and even leverage semantic or 
-        arbitrary information for analyzing factor models.
-        """)
-
-        st.space("xxsmall")
-
-        _, col_2, _ = st.columns(3)
-        with col_2:
             st.button("See use cases and sample outputs", width="stretch", type="primary", on_click=use_cases_dialog)
-
+        with col_2:
+            st.button("Read the paper", width="stretch", type="secondary", disabled=True, help="Coming soon...")
         st.space("xxsmall")
 
-    with st.expander("Getting started", True, icon=":material/rocket_launch:"):
+    st.space()
+
+    with st.container(border=False):
+        st.markdown("""
+        ## :material/rocket_launch: Getting started
+        """)
         st.info("""
         For several widgets, you can hover at the :material/help: icon to see additional tips.
         """)
@@ -2558,15 +2650,17 @@ with tab_overview:
             key="how_to_guide"
         )
 
+        st.button("Want more detailed instructions?", width="stretch", type="primary", on_click=guide_dialog)
+
         if getting_started_step == 0:
             st.markdown("""
-            In the *Settings* panel under *Menu*, you can configure various settings for the tool, such as 
-            the chart syles and colors. You can also click "Reload app" if you want to reset everything to default 
-            and clear all app data.
+            In the **Settings** panel under **Menu**, you can configure various settings for the tool, such as 
+            the chart syles and colors. You can also click "Reload app" if you want to reset everything to their 
+            defaults and clear all app data.
             """)
         elif getting_started_step == 1:
             st.markdown("""
-            Upload your dataset in the *Data* section of the *Menu*. You can upload three kinds of files: 
+            Upload your dataset in the **Data** section of the **Menu**. You can upload three kinds of files: 
             """)
             upload_sub_tab_1, upload_sub_tab_2, upload_sub_tab_3 = st.tabs([
                 "A. Main dataset",
@@ -2582,7 +2676,7 @@ with tab_overview:
                 must be numeric and there must have no missing values. This is **required** to fit a model. The CSV file 
                 or raw dataset **should not** have column headers. The tool will automatically label the columns as 
                 X1, X2, and so on.
-                
+
                 A sample CSV file can be found 
                 [here](https://drive.google.com/file/d/1NE02MwevCcHn4HXwxyXfF9AUjnSs5WGo/view?usp=sharing).
                 """)
@@ -2595,11 +2689,11 @@ with tab_overview:
                 per line. The order of the statements must match the order of the columns in the main dataset (i.e., 
                 the first statement must correspond to the first feature). This is an **optional** input, and will be 
                 used only if you select "semantics" for the prior in pairwise target rotation.
-                
+
                 Ideally, statements should not be too long but they should also be "complete" (e.g., 
                 a full sentence). However, it is also possible to have just "regular" one or two-word variable names 
                 such as "height" and so on. In such cases though, semantic similarities may not be as meaningful.
-                
+
                 A sample TXT file can be found 
                 [here](https://drive.google.com/file/d/1oXX7HNPhaOOvOTg_NgLV-Fla6O8EoQQi/view?usp=drive_link).
                 """)
@@ -2608,18 +2702,18 @@ with tab_overview:
                 st.markdown("""
                 ###### The tags associated with each variable (manual or CSV file). 
                 You can add tags to each variable or statement to help visualize interpretability. 
-                To do so, click *Tags* under *Data*. Then, either upload manually or an appropriate CSV file. 
+                To do so, click **Tags** under **Data**. Then, either upload manually or an appropriate CSV file. 
                 This is optional.
-                
+
                 The CSV file must have two columns. The first column must contain the variables 
                 and the second column must contain the corresponding tags. If a variable has 
                 multiple tags, separate them using commas (e.g., "Tag A, Tag B"). If a variable 
                 has no tags, leave the cell blank. The CSV file must not have headers.
-                
+
                 Sample CSV files can be found 
                 [here](https://drive.google.com/file/d/1wVspesiKovOf_ZjrlEvXMs5BM-r4EN7F/view?usp=sharing) and 
                 [here](https://drive.google.com/file/d/1JxMdwDOSoV0N5IPQKygeOBfVcnciLD2b/view?usp=sharing).
-                
+
                 **Statements vs Tags**. A variable can have at most one statement. It is usually the "question" for the 
                 variable. No two variables can have the same statement. On the other hand, a variable can have zero or 
                 more tags, and tags do not have to be unique across variables. Tags can be thought of as your 
@@ -2627,14 +2721,14 @@ with tab_overview:
                 """)
         elif getting_started_step == 2:
             st.markdown("""
-            Explore your dataset by going to the *Diagnostics* tab. For instance, you might want to examine the 
+            Explore your dataset by going to the **Diagnostics** tab. For instance, you might want to examine the 
             communalities or you might want to determine the optimal number of factors. There is also an interactive 
             visualizer available if you want to manually explore the raw dataset yourself. Otherwise, you can go to 
-            *Stats* under *Data* in the menu to see some readily available summary statistics.
+            **Stats** under **Data** in the menu to see some readily available summary statistics.
             """)
         elif getting_started_step == 3:
             st.markdown("""
-            Fit one or more factor models in the *Models* section of the *Menu*. Each model will use the same main 
+            Fit one or more factor models in the **Models** section of the **Menu**. Each model will use the same main 
             dataset. You can add or remove as many factor models as you need to. You can click the model name in order 
             to see more details about how the model was fit (e.g., number of factors, rotation method, fitting 
             algorithm).
@@ -2647,10 +2741,10 @@ with tab_overview:
             """)
         elif getting_started_step == 4:
             st.markdown("""
-            Proceed to the *Dashboard* tab and examine the loadings and visualizations available for each model. You can 
-            choose to display only one model to focus on a single factor model but you can also display 2 factor 
+            Proceed to the **Dashboard** page and examine the loadings and visualizations available for each model. You 
+            can choose to display only one model to focus on a single factor model but you can also display 2 factor 
             models at the same time for comparisons. If you want to view one factor model at a time in detail instead, 
-            you can go to *View* under *Factor Models*.
+            you can go to **View** under **Factor Models**.
             """)
         elif getting_started_step == 5:
             st.markdown("""
@@ -2662,27 +2756,38 @@ with tab_overview:
             click "Save image as..." or "Copy image".
             """)
 
-        _, col_2, _ = st.columns(3)
-        with col_2:
-            st.button("View detailed guide", width="stretch", type="primary", on_click=guide_dialog)
-
         st.space("xxsmall")
 
-    with st.expander("Notes", True, icon=":material/pinboard:", key="notes_expander"):
+    st.space()
+
+    with st.container(border=False):
+        st.markdown("""
+        ## :material/pinboard: Notes
+        """)
+
         st.markdown("""
         ###### Examples 
         * Sample datasets and files are available 
         [here](https://drive.google.com/drive/folders/1nc-pZFM5JdxmMrqE_QJyf03DLTEoEH0X?usp=sharing).
-        * Although classical rotations and traditional visualizations are made available, this tool was made partially
-        to make pairwise target rotation accessible. As such, you may want to read the paper 
+        * Classical rotations and traditional visualizations are made available here, but this tool was made partially 
+        to make pairwise target rotation accessible, as well. As such, you may want to read the paper 
         [here](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
 
-        ###### Limitations and Future Releases
-        * The Universal Sentence Encoder is the only embedder available for the statements for now.
+        ###### Future Releases
+        * The Universal Sentence Encoder is the only sentence embedder available for now.
         * A video walkthrough of the tool is in the works.
         """)
 
-with tab_diagnostics:
+        st.space("xxsmall")
+
+
+def diagnostics_page():
+    st.session_state.CURRENT_PAGE = "diagnostics"
+
+    st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+    with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+        st.write("")
+
     if st.session_state.DATA is None:
         st.warning("Upload a dataset first.")
     else:
@@ -2721,7 +2826,7 @@ with tab_diagnostics:
                     ["variable", "Statement", "mean"] +
                     [col for col in model_analysis.columns if col.startswith("factor_")] +
                     ["communality", "kmo_msa"]
-                ]
+                    ]
             model_analysis.columns = [col.upper() for col in model_analysis.columns]
             model_analysis_styled = model_analysis[["VARIABLE", "STATEMENT", "COMMUNALITY", "KMO_MSA"]].copy()
             model_analysis_styled.sort_values(by=["COMMUNALITY"], ascending=[True], inplace=True)
@@ -2881,13 +2986,20 @@ with tab_diagnostics:
                 )
                 st.plotly_chart(fig_corr, width="stretch", key="fig_corr_diag")
 
-with tab_dashboard:
+
+def dashboard_page():
+    st.session_state.CURRENT_PAGE = "dashboard"
+
+    st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+    with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+        st.write("")
+
     if st.session_state.DATA is None or len(st.session_state.FACTOR_MODELS) == 0:
         st.warning("Fit a factor model first.")
     else:
         st.info("""
         :material/info: If your screen is not wide enough for the horizontal layout, consider temporarily hiding the 
-        *Menu* sidebar. You can also hide or show columns in tables.
+        **Menu** sidebar. You can also hide or show columns in tables.
         """)
 
         col_1, _ = st.columns(2)
@@ -3247,7 +3359,7 @@ with tab_dashboard:
                     model_analysis = model_analyses[i]
                     loadings_only = model_analysis[["variable"] + [col for col in model_analysis.columns
                                                                    if col.startswith("factor_")]]
-                    
+
                     st.subheader(":material/bar_chart_4_bars: Factor loadings")
                     st.space()
 
@@ -3277,7 +3389,7 @@ with tab_dashboard:
                     if not show_each_factor:
                         factor_loadings_long = factor_loadings_long[
                             factor_loadings_long["factor"] == "All factors"
-                        ]
+                            ]
 
                     thresh = st.slider(
                         "Absolute threshold", min_value=0.0, max_value=1.0, value=0.35,
@@ -3295,7 +3407,7 @@ with tab_dashboard:
                         show_raw = st.checkbox("Show original loadings instead?",
                                                key=f"{model_name}_show_raw_instead",
                                                help="""
-                                               Leaving this unchecked will show the *binarized* loadings, where a 
+                                               Leaving this unchecked will show the **binarized** loadings, where a 
                                                manifest variable is either "included" or "not included" in a factor 
                                                based on whether the absolute value of the loading exceeds or equals the 
                                                threshold, or not.
@@ -3366,8 +3478,8 @@ with tab_dashboard:
 
                     df_loadings_discretized = df_loadings.copy()
                     df_loadings_discretized[factor_cols] = (
-                        np.sign(df_loadings_discretized[factor_cols]) *
-                        (df_loadings_discretized[factor_cols].abs() >= thresh)
+                            np.sign(df_loadings_discretized[factor_cols]) *
+                            (df_loadings_discretized[factor_cols].abs() >= thresh)
                     ).astype(int)
 
                     if not show_raw:
@@ -3422,7 +3534,7 @@ with tab_dashboard:
                                 col for col in df_loadings_download.columns
                                 if col.startswith("FACTOR_")
                             ]
-                        ]
+                            ]
                     st.download_button("Download as CSV file",
                                        df_loadings_download.to_csv(),
                                        key=f"{model_name}_download_loadings",
@@ -3442,7 +3554,7 @@ with tab_dashboard:
                                     if st.session_state.STATEMENTS_DF is not None:
                                         statement = st.session_state.STATEMENTS_DF[
                                             st.session_state.STATEMENTS_DF["Variable"] == variable
-                                        ]["Statement"].item()
+                                            ]["Statement"].item()
                                         if statement is None:
                                             st.write(variable)
                                         else:
@@ -3544,8 +3656,10 @@ with tab_dashboard:
                                 sorted_factors if x_var == "factor" else sorted_variables
                             )
                         )
-                        fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
-                                                         if x_var == "variable" else "Latent Factor", row=1, col=1)
+                        fig_pseudo_parallel.update_xaxes(
+                            title_text="Manifest Variable" if x_var == "variable" else "Latent Factor",
+                            row=1, col=1
+                        )
 
                         fig_pseudo_parallel.update_yaxes(
                             title_text="Loading",
@@ -3601,23 +3715,26 @@ with tab_dashboard:
                                 sorted_factors if x_var == "factor" else sorted_variables
                             )
                         )
-                        fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
-                                                         if x_var == "variable" else "Latent Factor", row=1, col=1,
-                                                         side="bottom",
-                                                         visible=True,
-                                                         showticklabels=True,
-                                                         showline=show_x_line,
-                                                         showgrid=show_x_grid,
-                                                         zeroline=False)
-                        fig_pseudo_parallel.update_xaxes(title_text="Manifest Variable"
-                                                         if x_var == "variable" else "Latent Factor",
-                                                         row=len(sorted_factors if color_var == "factor"
-                                                                 else sorted_variables), col=1, side="top",
-                                                         visible=True,
-                                                         showticklabels=True,
-                                                         showline=show_x_line,
-                                                         showgrid=show_x_grid,
-                                                         zeroline=False)
+                        fig_pseudo_parallel.update_xaxes(
+                            title_text="Manifest Variable" if x_var == "variable" else "Latent Factor",
+                            row=1, col=1,
+                            side="bottom",
+                            visible=True,
+                            showticklabels=True,
+                            showline=show_x_line,
+                            showgrid=show_x_grid,
+                            zeroline=False
+                        )
+                        fig_pseudo_parallel.update_xaxes(
+                            title_text="Manifest Variable" if x_var == "variable" else "Latent Factor",
+                            row=len(sorted_factors if color_var == "factor" else sorted_variables),
+                            col=1, side="top",
+                            visible=True,
+                            showticklabels=True,
+                            showline=show_x_line,
+                            showgrid=show_x_grid,
+                            zeroline=False
+                        )
 
                         fig_pseudo_parallel.update_yaxes(
                             title_text="Loading",
@@ -3660,12 +3777,12 @@ with tab_dashboard:
                                         key=f"{model_name}_popover", width="stretch"):
                             st.markdown("""
                             You can interact with the network graph:
-                            * Click on *Options* to see the legend and filters.
+                            * Click on **Options** to see the legend and filters.
                             * Hover on the node to see the associated statement, if any.
                             * Click on a node or an edge to move the graph.
                             * Click on a blank space to pan the canvas. Scroll to zoom in or out.
                             * Right-click on the canvas to save the graph as an image.
-                            
+
                             If you cannot see the network graph, try zooming out or try resetting the graph by 
                             unselecting then selecting the model again.
                             """)
@@ -3687,8 +3804,8 @@ with tab_dashboard:
 
                     df_loadings_discretized = df_loadings
                     df_loadings_discretized[factor_cols] = (
-                        np.sign(df_loadings_discretized[factor_cols]) *
-                        (df_loadings_discretized[factor_cols].abs() >= threshs[i])
+                            np.sign(df_loadings_discretized[factor_cols]) *
+                            (df_loadings_discretized[factor_cols].abs() >= threshs[i])
                     ).astype(int)
 
                     with st.expander("Options"):
@@ -3736,7 +3853,7 @@ with tab_dashboard:
                         if st.session_state is not None:
                             title = st.session_state.STATEMENTS_DF[
                                 st.session_state.STATEMENTS_DF["Variable"] == mv
-                            ]["Statement"].item()
+                                ]["Statement"].item()
                         else:
                             title = mv
                         nodes.append(
@@ -3811,8 +3928,8 @@ with tab_dashboard:
 
                     df_loadings_discretized = df_loadings
                     df_loadings_discretized[factor_cols] = (
-                        np.sign(df_loadings_discretized[factor_cols]) *
-                        (df_loadings_discretized[factor_cols].abs() >= threshs[i])
+                            np.sign(df_loadings_discretized[factor_cols]) *
+                            (df_loadings_discretized[factor_cols].abs() >= threshs[i])
                     ).astype(int)
 
                     st.subheader(":material/cognition_2: Interpretation")
@@ -3823,14 +3940,14 @@ with tab_dashboard:
                     else:
                         st.markdown("Interpretations are generated using the groupings defined by the "
                                     "absolute threshold in :blue-badge[Factor loadings].")
-                        st.caption("Note that this is not intended to replace the researcher's judgment and is "
-                                   "only meant to help it. For instance, one should cross-check the LLM findings "
-                                   "with the sign of the loadings, the cross-loadings, and so on.")
-                        st.caption("""
+                        st.markdown("Note that this is not intended to replace the researcher's judgment and is "
+                                    "only meant to help it. For instance, one should cross-check the LLM findings "
+                                    "with the sign of the loadings, the cross-loadings, and so on.")
+                        st.markdown("""
                         Statements in the "Statement" section follow this format: 
-                        <Variable Name> (<Loading Sign>): <Statement>. For example, "X1 (Positive): I am sad." refers 
-                        to the manifest variable X1, whose statement is "I am sad." and whose loading for the given 
-                        factor is positive.
+                        **<Variable Name> (<Loading Sign>): <Statement>**. For example, "X1 (Positive): I am sad." 
+                        refers to the manifest variable X1, whose statement is "I am sad." and whose loading for the 
+                        given factor is positive.
                         """)
                         st.space("xxsmall")
 
@@ -3865,12 +3982,19 @@ with tab_dashboard:
 
                     st.space()
 
-with tab_about:
+
+def about_page():
+    st.session_state.CURRENT_PAGE = "about"
+
+    st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+    with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+        st.write("")
+
     st.markdown("##### :material/person_edit: Project Contributors")
     col_1, col_2 = st.columns(2, border=True)
     with col_1:
         avatar(
-            "https://avatars.githubusercontent.com/u/142733277?v=4",
+            "./images/avatars/jstuazon_final.jpeg",
             label="Justin Philip Tuazon",
             height=64,
             caption="Developer",
@@ -3880,18 +4004,17 @@ with tab_about:
         [:material/mail: jstuazon@up.edu.ph](jstuazon@up.edu.ph)
         • [:material/link_2: LinkedIn](https://www.linkedin.com/in/justin-philip-tuazon/)
         """)
-        st.caption("""
-        Justin works as a Data Scientist at a large bank. He is also an MS Computer Science student at University 
-        of the Philippines - Diliman and graduated *summa cum laude* from the same university with a BS Statistics 
-        degree.
-        
+        st.markdown("""
+        Justin works as a Data Scientist at a large universal bank. He is also an MS Computer Science student at 
+        University of the Philippines - Diliman and graduated summa cum laude from the same university with a BS 
+        Statistics degree.
+
         Currently, he is affiliated with the Computer Vision and Machine Intelligence Group of the Department of 
         Computer Science at his university.
         """)
     with col_2:
         avatar(
-            "https://media.licdn.com/dms/image/v2/D5603AQEXRcEbRZrKBA/profile-displayphoto-scale_400_400/"
-            "B56ZodwfbpIYAg-/0/1761435843192?e=1777507200&v=beta&t=FYwHtYmZsc_mmMsGGAjSumf2rUBRBlQfAOWOGDkZ6Go",
+            "./images/avatars/jeolea_final.jpg",
             label="Joemari Olea",
             height=64,
             caption="Adviser",
@@ -3900,10 +4023,10 @@ with tab_about:
         st.markdown("""
         [:material/mail: jeolea1@up.edu.ph](jeolea1@up.edu.ph)
         """)
-        st.caption("""
+        st.markdown("""
         Joemari is an Assistant Professor at the School of Statistics in the University of the Philippines - 
         Diliman. He holds both MS and BS degrees in Statistics from the same university.
-         
+
         Currently, he is a doctoral student studying Educational Psychology (Quantitative Methods), specializing in 
         Psychometrics, at the University of Texas at Austin.
         """)
@@ -3931,25 +4054,32 @@ with tab_about:
           the University of the Philippines - Diliman, whose helpful guidance and feedback are gratefully acknowledged.
         """)
 
-with tab_privacy:
+
+def privacy_page():
+    st.session_state.CURRENT_PAGE = "privacy"
+
+    st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
+    with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
+        st.write("")
+
     st.markdown("""
-    ##### File uploads
+    ##### :material/upload: File Uploads
     FactorFlow does not store user uploads in persistent data storage. Uploaded information are discarded when the 
     session ends. The app deals with file uploads using Streamlit's `file_uploader`. Thus, files uploaded to the app 
     are stored only in memory and not in disk. Uploads are deleted when:
     * The user replaced the old file by uploading a new one.
     * The file uploader is cleared.
     * The browser tab where the file was uploaded is closed.
-    
+
     This means that uploaded files are deleted immediately after they are not in use anymore. More information can 
     be found [here](https://docs.streamlit.io/knowledge-base/using-streamlit/where-file-uploader-store-when-deleted).
-    
-    ##### Large language model calls
+
+    ##### :material/api: Large language Model Calls
     For LLM-related features, FactorFlow uses [Groq](https://groq.com/). Whenever the user generates an 
     interpretation, the app uses Groq's API and passes data about the loading matrix and the statements (but not 
     the raw data). Thus, for LLM calls, the app follows Groq's privacy policy, which you can find 
     [here](https://console.groq.com/docs/legal).
-    
+
     An example of what is passed to Groq's API is shown below.
     ```
     factor_1:
@@ -3964,7 +4094,7 @@ with tab_privacy:
     - X32 (Positive): I get frustrated if romantic partners are not available when I need them.
     - X33 (Positive): It helps to turn to my romantic partner in times of need.
     - X35 (Positive): I turn to my partner for many things, including comfort and reassurance.
-    
+
     factor_2:
     - X2 (Positive): I worry about being abandoned.
     - X4 (Positive): I worry a lot about my relationships.
@@ -3976,7 +4106,7 @@ with tab_privacy:
     - X22 (Negative): I do not often worry about being abandoned.
     - X28 (Positive): When I'm not involved in a relationship, I feel somewhat anxious and insecure.
     - X34 (Positive): When romantic partners disapprove of me, I feel really bad about myself.
-    
+
     factor_3:
     - X5 (Positive): Just when my partner starts to get close to me I find myself pulling away.
     - X7 (Positive): I get uncomfortable when a romantic partner wants to be very close.
@@ -3984,7 +4114,7 @@ with tab_privacy:
     - X30 (Negative): I get frustrated when my partner is not around as much as I would like.
     - X32 (Negative): I get frustrated if romantic partners are not available when I need them.
     - X36 (Negative): I resent it when my partner spends time away from me.
-    
+
     factor_4:
     - X3 (Negative): I am very comfortable being close to romantic partners.
     - X5 (Positive): Just when my partner starts to get close to me I find myself pulling away.
@@ -4005,7 +4135,7 @@ with tab_privacy:
     - X30 (Positive): I get frustrated when my partner is not around as much as I would like.
     - X32 (Positive): I get frustrated if romantic partners are not available when I need them.
     - X36 (Positive): I resent it when my partner spends time away from me.
-    
+
     factor_5:
     - X1 (Negative): I prefer not to show a partner how I feel deep down.
     - X3 (Positive): I am very comfortable being close to romantic partners.
@@ -4024,13 +4154,28 @@ with tab_privacy:
     ```
     """)
 
+
+pages = [
+    st.Page(overview_page, title=":material/home: Overview"),
+    st.Page(diagnostics_page, title=":material/data_thresholding: Diagnostics"),
+    st.Page(dashboard_page, title=":material/dashboard: Dashboard"),
+    st.Page(about_page, title=":material/page_info: About"),
+    st.Page(privacy_page, title=":material/privacy_tip: Privacy")
+]
+pg = st.navigation(pages, position="top")
+pg.run()
+
+if st.session_state.CURRENT_PAGE != "overview":
+    st.logo("./images/factor_flow_logo_3.png", size="small",
+            link="https://github.com/jptuazon/factorflow")
+
 if show_floating_top:
     if floating_button(":material/keyboard_double_arrow_up: Top"):
         scroll_to_element(f"app_title_{st.session_state.SCROLL_COUNTER}")
 
 footer = """
 <div class="custom-footer">
-    FactorFlow: An LLM-enhanced Visual Workbench for Exploratory Factor Analysis 
+    FactorFlow: An LLM-integrated Visual Workspace for Exploratory Factor Analysis 
     • Copyright © 2026 Justin Philip Tuazon
 </div>
 """
