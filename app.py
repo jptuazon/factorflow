@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.6.0
+# FactorFlow V3.6.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -37,7 +37,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.6.0"
+VERSION_NUMBER = "3.6.1"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -2555,7 +2555,7 @@ def overview_page():
             ("<span class='material-icons-outlined'>psychology</span>", "Large language model integration",
              "Language-model-assisted interpretation and semantic guidance"),
             ("<span class='material-icons-outlined'>analytics</span>", "Deep analysis workflows",
-             "Diagnostics, comparisons, and exploratory deep dives")
+             "Hypothesis testing, diagnostics, model comparisons, and exploratory deep dives")
         ]
 
         col_1, col_2 = st.columns([2, 1])
