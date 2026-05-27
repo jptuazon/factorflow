@@ -6,6 +6,7 @@ from scipy.stats import chi2 as chi2_dist
 from scipy.stats import norm, multivariate_normal, kendalltau
 from scipy.optimize import minimize_scalar
 import warnings
+from scipy.stats import binomtest
 
 
 def get_df(num_man, num_fac):
@@ -240,3 +241,24 @@ def get_v_index(prior_matrix, loading_sim_matrix):
     v_index = math.sqrt(tau * theta)
 
     return v_index
+
+
+def sign_test(x, median=0, alternative="greater"):
+    diffs = np.array(x) - median
+    non_zero_diffs = np.sum(diffs != 0)
+    n_plus = np.sum(diffs > 0)
+
+    if non_zero_diffs == 0:
+        return None, None
+
+    test = binomtest(
+        n_plus,
+        non_zero_diffs,
+        p=0.5,
+        alternative=alternative
+    )
+
+    test_stat = n_plus
+    p_val = test.pvalue
+
+    return test_stat, p_val
