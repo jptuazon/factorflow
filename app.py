@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.6.1
+# FactorFlow V3.6.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -22,12 +22,12 @@ from itertools import product, combinations
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
-from statsmodels.stats.descriptivestats import sign_test
 import matplotlib.pyplot as plt
 import plotly.express as px
 import streamlit as st
 from groq import Groq
-from factor_model_trainer import InterpretableFA, get_chi_sq, get_df, polychoric, get_multiset, get_v_index
+from factor_model_trainer import InterpretableFA, get_chi_sq, get_df, polychoric
+from factor_model_trainer import get_multiset, get_v_index, sign_test
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_extras.card_selector import card_selector
@@ -37,7 +37,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.6.1"
+VERSION_NUMBER = "3.6.2"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -1492,17 +1492,25 @@ def view_data_dialog():
         p_val = test_result.pvalue
         test_done = "one-sample t-test for the mean"
     elif parameter_to_test == "Median":
-        test_stat, p_val = sign_test(st.session_state.DATA[variable_to_test], value_to_test)
+        test_stat, p_val = sign_test(st.session_state.DATA[variable_to_test], value_to_test,
+                                     alternative=alternatives[direction_to_test])
         test_done = "sign test"
 
     test_stat = np.round(test_stat, 4)
     p_val = np.round(p_val, 4)
     decision = "enough" if p_val <= float(sig_level) else "not enough"
 
+    if alternatives[direction_to_test] == "two-sided":
+        claim_direction = "equal to"
+    elif alternatives[direction_to_test] == "greater":
+        claim_direction = "greater than"
+    else:
+        claim_direction = "less than"
+
     st.success(f"""
     Based on the **{test_done}**, the test statistic is {test_stat}, with a **p-value of {p_val}**. At {sig_level} 
-    level of significance, there is {decision} evidence to reject the null hypothesis that the population 
-    {parameter_to_test.lower()} is {value_to_test}.
+    level of significance, there is **{decision} evidence** to support the claim that the population 
+    {parameter_to_test.lower()} is {claim_direction} {value_to_test}.
     """)
 
     st.caption("Sphericity")
