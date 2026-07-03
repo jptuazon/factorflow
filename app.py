@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.6.2
+# FactorFlow V3.7.0
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -37,7 +37,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.6.2"
+VERSION_NUMBER = "3.7.0"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -815,12 +815,20 @@ def generate_interpretation(factors):
                     either "Disagree-Agree", which means that larger variable values indicate higher agreement levels, 
                     or "Agree-Disagree", which means larger variable values indicate lower agreement levels.
                     - When interpreting factors, take the scale direction into account, if scale direction is 
-                    present. For example, if the sign of the loading is positive and the scale direction is 
-                    "Disagree-Agree", that means greater agreement with the variable corresponds to higher 
-                    factor scores.
+                    present. 
+                      (a) If the loading sign is positive and the scale direction is "Disagree-Agree", greater 
+                      agreement with the variable statement is associated with higher factor scores.
+                      (b) If the loading sign is positive and the scale direction is "Agree-Disagree", greater 
+                      disagreement with the variable statement is associated with higher factor scores.
+                      (c) If the loading sign is negative and the scale direction is "Disagree-Agree", greater 
+                      agreement with the variable statement is associated with lower factor scores.
+                      (d) If the loading sign is negative and the scale direction is "Agree-Disagree", greater 
+                      disagreement with the variable statement is associated with lower factor scores.
                     - Note that the scale direction by itself does NOT influence interpretation. However, pairing 
                     the sign of the loading with the scale direction allows you to properly interpret the 
-                    "effect" of a manifest variable on a factor.
+                    "association" of a manifest variable with a factor.
+                    - The application of the scale direction rule is on a per-statement or per-variable basis. 
+                    After such, the overall interpretation is determined.
 
                     Conflict Handling Rule:
                     - If statements reflect multiple distinct or conflicting themes:
@@ -2534,7 +2542,7 @@ def overview_page():
             st.markdown(
                 """
                 <h5 style="text-align: center; color: #696969;">
-                An LLM-integrated Visual Workspace for Exploratory Factor Analysis
+                A Visual Analytics Environment with Large Language Model Integration for Factor Analysis
                 </h5>
                 """,
                 unsafe_allow_html=True
@@ -2782,8 +2790,10 @@ def overview_page():
         [here](https://arxiv.org/abs/2409.11525) to understand more about how you can use this tool.
 
         ###### Future Releases
-        * The Universal Sentence Encoder is the only sentence embedder available for now.
         * A video walkthrough of the tool is in the works.
+        * The Universal Sentence Encoder is the only sentence embedder available for now.
+        * Currently, support for confirmatory factor analysis (CFA) is not available but may be implemented in the 
+        future.
         """)
 
         st.space("xxsmall")
@@ -3999,7 +4009,7 @@ def about_page():
         st.write("")
 
     st.markdown("##### :material/person_edit: Project Contributors")
-    col_1, col_2 = st.columns(2, border=True)
+    col_1, col_2, col_3 = st.columns(3, border=True)
     with col_1:
         avatar(
             "./images/avatars/jstuazon_final.jpeg",
@@ -4026,7 +4036,7 @@ def about_page():
             label="Joemari Olea",
             height=64,
             caption="Adviser",
-            key="avatar_adviser"
+            key="avatar_adviser_1"
         )
         st.markdown("""
         [:material/mail: jeolea1@up.edu.ph](jeolea1@up.edu.ph)
@@ -4038,29 +4048,43 @@ def about_page():
         Currently, he is a doctoral student studying Educational Psychology (Quantitative Methods), specializing in 
         Psychometrics, at the University of Texas at Austin.
         """)
+    with col_3:
+        avatar(
+            "./images/avatars/rbjuayong_final.jpg",
+            label="Richelle Ann Juayong",
+            height=64,
+            caption="Adviser",
+            key="avatar_adviser_2"
+        )
+        st.markdown("""
+        [:material/mail: rbjuayong@up.edu.ph](rbjuayong@up.edu.ph)
+        """)
+        st.markdown("""
+        Rich is an Associate Professor at the Department of Computer Science in the University of the Philippines - 
+        Diliman. She holds BS, MS. and PhD degrees in Computer Science from the same university.
+        
+        Currently, she is also a member of the Service Science and Software Engineering Laboratory of the Department 
+        of Computer Science at her university. 
+        """)
 
     st.space()
 
     st.markdown("##### :material/deployed_code: Release and Source")
-    col_1, col_2, col_3 = st.columns(3, border=True)
+    col_1, col_2, col_3, col_4 = st.columns(4, border=True)
     with col_1:
+        st.caption("Research Paper")
+        st.write("Coming soon...")
+    with col_2:
         st.caption("Version Number")
         st.write(VERSION_NUMBER)
-    with col_2:
+    with col_3:
         st.caption("Repository")
         st.markdown("[:material/folder_code: GitHub](https://github.com/jptuazon/factorflow)")
-    with col_3:
+    with col_4:
         st.caption("License")
         st.markdown("[:material/license: GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)")
 
     st.space()
-
-    st.markdown("##### :material/crowdsource: Acknowledgements")
-    with st.container(border=True):
-        st.write("""
-          This project was initially developed as part of CS 242 (Data Visualization) under Dr. Richelle Juayong at 
-          the University of the Philippines - Diliman, whose helpful guidance and feedback are gratefully acknowledged.
-        """)
 
 
 def privacy_page():
@@ -4090,6 +4114,8 @@ def privacy_page():
 
     An example of what is passed to Groq's API is shown below.
     ```
+    Scale Direction - Disagree-Agree
+    
     factor_1:
     - X1 (Negative): I prefer not to show a partner how I feel deep down.
     - X9 (Negative): I don't feel comfortable opening up to romantic partners.
@@ -4183,7 +4209,7 @@ if show_floating_top:
 
 footer = """
 <div class="custom-footer">
-    FactorFlow: An LLM-integrated Visual Workspace for Exploratory Factor Analysis 
+    FactorFlow: A Visual Analytics Environment with Large Language Model Integration for Factor Analysis
     • Copyright © 2026 Justin Philip Tuazon
 </div>
 """
