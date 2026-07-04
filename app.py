@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.7.0
+# FactorFlow V3.7.1
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -37,7 +37,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.7.0"
+VERSION_NUMBER = "3.7.1"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -746,9 +746,8 @@ if st.session_state.SHOW_POLY_DIALOG:
 # LLM set up
 LLM_API_KEY = st.secrets["GROQ_API_KEY"]
 LLM_MODEL_IDS = [
-    "llama-3.3-70b-versatile",
     "openai/gpt-oss-120b",
-    "llama-3.1-8b-instant"
+    "openai/gpt-oss-20b"
 ]
 
 if "LLM_CLIENT" not in st.session_state:
@@ -927,7 +926,8 @@ def generate_interpretation(factors):
             st.toast("✅ LLM output was successfully generated.")
 
         return llm_model_id, interpretation.choices[0].message.content.replace("\n", "  \n")
-    except Exception:
+    except Exception as e:
+        st.toast(e)
         st.toast("❌ Cannot use current LLM. Please try again in a while or use a different model.")
         return "Error", "Rate limit reached. Please try again in a while or use a different model."
 
@@ -968,7 +968,7 @@ def interpret_factor_model(df_discretized_loadings, model_name):
 # Page configuration
 st.set_page_config(
     page_title="FactorFlow",
-    page_icon="./images/ff_icon_32.png",
+    page_icon="./images/ff_icon.png",
     layout="wide",
     initial_sidebar_state="auto"
 )
@@ -2127,6 +2127,7 @@ with col_2:
     st.markdown(f"""
     <img class="hide-logo" src="data:image/png;base64,{encoded_logo}" />
     """, unsafe_allow_html=True)
+    st.space()
     with st.container(horizontal_alignment="center"):
         with st.spinner("Loading NLP models...", show_time=True):
             while st.session_state.USE_MODEL_LOADED != 1:
@@ -2531,18 +2532,18 @@ st.markdown(f"""
 def overview_page():
     st.session_state.CURRENT_PAGE = "overview"
 
-    _, col_2, _ = st.columns([1, 3, 1])
+    _, col_2, _ = st.columns([1, 1.5, 1])
     with col_2:
         st.image("./images/factor_flow_logo.png", width="stretch")
 
     st.session_state.SCROLL_COUNTER = 1 - st.session_state.SCROLL_COUNTER
     with st.container(key=f"app_title_{st.session_state.SCROLL_COUNTER}"):
-        _, col_2, _ = st.columns([1, 6, 1])
+        _, col_2, _ = st.columns([1, 20, 1])
         with col_2:
             st.markdown(
                 """
                 <h5 style="text-align: center; color: #696969;">
-                A Visual Analytics Environment with Large Language Model Integration for Factor Analysis
+                A Visual Analytics Workspace with Large Language Model–Assisted Interpretation for Factor Analysis
                 </h5>
                 """,
                 unsafe_allow_html=True
@@ -2556,7 +2557,7 @@ def overview_page():
         """)
 
         st.markdown("""
-        FactorFlow is an **interactive tool** intended to help researchers and practitioners perform exploratory factor
+        **FactorFlow** is an interactive tool intended to help researchers and practitioners perform exploratory factor
         analysis (EFA) effectively and efficiently. Using this app, users can upload their datasets, perform
         diagnostics, fit various factor models and factor rotations, and evaluate models. It comes with the following
         key features:
@@ -4200,7 +4201,7 @@ pg = st.navigation(pages, position="top")
 pg.run()
 
 if st.session_state.CURRENT_PAGE != "overview":
-    st.logo("./images/factor_flow_logo_3.png", size="small",
+    st.logo("./images/factor_flow_logo.png", size="large",
             link="https://github.com/jptuazon/factorflow")
 
 if show_floating_top:
@@ -4209,7 +4210,7 @@ if show_floating_top:
 
 footer = """
 <div class="custom-footer">
-    FactorFlow: A Visual Analytics Environment with Large Language Model Integration for Factor Analysis
+    FactorFlow: A Visual Analytics Workspace with Large Language Model–Assisted Interpretation for Factor Analysis
     • Copyright © 2026 Justin Philip Tuazon
 </div>
 """
