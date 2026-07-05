@@ -10,7 +10,7 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>.
 
-# FactorFlow V3.7.1
+# FactorFlow V3.7.2
 # https://factorflow-efa.streamlit.app/
 
 import warnings
@@ -37,7 +37,7 @@ from streamlit_lottie import st_lottie
 from streamlit_extras.avatar import avatar
 
 # App constants
-VERSION_NUMBER = "3.7.1"
+VERSION_NUMBER = "3.7.2"
 ORTHOGONAL_ROTATIONS = ["Priorimax", "Varimax", "Oblimax", "Quartimax", "Equamax"]
 OBLIQUE_ROTATIONS = ["Promax", "Oblimin", "Quartimin"]
 ROTATIONS = ORTHOGONAL_ROTATIONS + OBLIQUE_ROTATIONS + ["None"]
@@ -4044,7 +4044,7 @@ def about_page():
         """)
         st.markdown("""
         Joemari is an Assistant Professor at the School of Statistics in the University of the Philippines - 
-        Diliman. He holds both MS and BS degrees in Statistics from the same university.
+        Diliman. He holds both BS and MS degrees in Statistics from the same university.
 
         Currently, he is a doctoral student studying Educational Psychology (Quantitative Methods), specializing in 
         Psychometrics, at the University of Texas at Austin.
@@ -4062,7 +4062,7 @@ def about_page():
         """)
         st.markdown("""
         Rich is an Associate Professor at the Department of Computer Science in the University of the Philippines - 
-        Diliman. She holds BS, MS. and PhD degrees in Computer Science from the same university.
+        Diliman. She holds BS, MS, and PhD degrees in Computer Science from the same university.
         
         Currently, she is also a member of the Service Science and Software Engineering Laboratory of the Department 
         of Computer Science at her university. 
